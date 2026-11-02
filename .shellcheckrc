@@ -1,0 +1,6 @@
+external-sources=true
+source-path=SCRIPTDIR
+source-path=SCRIPTDIR/..
+source-path=SCRIPTDIR/../..
+# Paths and profile data are globals set in one lib file and read from another.
+disable=SC2034

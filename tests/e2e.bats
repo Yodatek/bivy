@@ -1,0 +1,112 @@
+#!/usr/bin/env bats
+# The whole path with real mise and default locations: init --config, apply, doctor.
+
+load helper
+
+real_home_snapshot() {
+  local f
+  for f in .zshrc .zshenv .zprofile .bashrc .bash_profile .profile .gitconfig \
+    .ssh/config .m2/settings.xml .config/bivy/config.toml .config/mise/conf.d/bivy.toml; do
+    if [ -e "$REAL_HOME/$f" ]; then
+      printf '%s %s\n' "$f" "$(cksum <"$REAL_HOME/$f")"
+    else
+      printf '%s absent\n' "$f"
+    fi
+  done
+}
+
+setup_file() {
+  export REAL_HOME=$HOME
+  real_home_snapshot >"$BATS_FILE_TMPDIR/real-before"
+  sandbox_env "$BATS_FILE_TMPDIR/home"
+  make_profile_repo "$BATS_FILE_TMPDIR/profile"
+  write_config "$BATS_FILE_TMPDIR/config.toml" "$BATS_FILE_TMPDIR/profile"
+  printf '# mine\nexport MINE=1\n' >"$HOME/.zshenv"
+  echo "user content" >"$BATS_FILE_TMPDIR/old.conf"
+  mkdir -p "$HOME/.config/bivy-example"
+  cp "$BATS_FILE_TMPDIR/old.conf" "$HOME/.config/bivy-example/example.conf"
+
+  bivy init --config "$BATS_FILE_TMPDIR/config.toml"
+  echo 'EXAMPLE_API_TOKEN=s3cret&\value' >>"$HOME/.config/bivy/.env"
+  bivy apply >"$BATS_FILE_TMPDIR/apply.log" 2>&1
+}
+
+setup() {
+  export HOME=$BATS_FILE_TMPDIR/home
+}
+
+@test "doctor passes after init --config and apply" {
+  run bivy doctor
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"all good"* ]]
+  [[ "$output" != *"FAIL"* ]]
+}
+
+@test "secrets file has mode 600" {
+  [ "$(file_mode "$HOME/.config/bivy/.env")" = 600 ]
+}
+
+@test "the template is rendered with mode 600, the secret verbatim" {
+  local target="$HOME/.config/bivy-example/example.conf"
+  [ "$(file_mode "$target")" = 600 ]
+  grep -qxF 'user = Test User' "$target"
+  grep -qxF 'token = s3cret&\value' "$target"
+  grep -qxF "cache = $HOME/.cache/bivy-example" "$target"
+}
+
+@test "the replaced file is backed up with its content" {
+  local found
+  found=$(find "$HOME/.local/state/bivy/backups" -name example.conf)
+  [ -n "$found" ]
+  grep -qxF 'user content' "$found"
+  [ "$(file_mode "$found")" = 600 ]
+}
+
+@test "existing startup content is kept" {
+  grep -qxF 'export MINE=1' "$HOME/.zshenv"
+  [ "$(head -n 1 "$HOME/.zshenv")" = '# >>> bivy >>>' ]
+}
+
+@test "profile tools run from non-interactive shells with an empty environment" {
+  cd "$HOME"
+  run env -i HOME="$HOME" PATH=/usr/bin:/bin bash -lc 'jq --version'
+  [ "$status" -eq 0 ]
+  [ "$output" = jq-1.7.1 ]
+  if command -v zsh >/dev/null; then
+    run env -i HOME="$HOME" PATH=/usr/bin:/bin zsh -c 'jq --version'
+    [ "$status" -eq 0 ]
+    [ "$output" = jq-1.7.1 ]
+  fi
+}
+
+@test "shims come first in a login shell even when PATH already has them late" {
+  cd "$HOME"
+  run env -i HOME="$HOME" PATH="/usr/bin:/bin:$HOME/.local/share/mise/shims" bash -lc 'command -v jq'
+  [ "$output" = "$HOME/.local/share/mise/shims/jq" ]
+}
+
+@test "a second apply changes nothing and adds no backup" {
+  local before after backups_before backups_after
+  before=$(home_fingerprint)
+  backups_before=$(ls "$HOME/.local/state/bivy/backups")
+  run bivy apply
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"0 written"* ]]
+  after=$(home_fingerprint)
+  backups_after=$(ls "$HOME/.local/state/bivy/backups")
+  [ "$before" = "$after" ]
+  [ "$backups_before" = "$backups_after" ]
+}
+
+@test "the secret never appears in the output" {
+  ! grep -qF 's3cret' "$BATS_FILE_TMPDIR/apply.log"
+}
+
+@test "no staging directory with rendered secrets is left behind" {
+  [ -z "$(find "$HOME/.local/state/bivy" -maxdepth 1 -name 'staging.*')" ]
+}
+
+@test "the real home is untouched" {
+  HOME=$REAL_HOME real_home_snapshot >"$BATS_FILE_TMPDIR/real-after"
+  cmp "$BATS_FILE_TMPDIR/real-before" "$BATS_FILE_TMPDIR/real-after"
+}

@@ -1,0 +1,11 @@
+# Generic example. A real profile lives in its own Git repository.
+
+[secrets]
+required = ["EXAMPLE_API_TOKEN"]
+
+[tools]
+jq = "1.7.1"
+
+[[files]]
+source = "files/example.conf.tmpl"
+target = ".config/bivy-example/example.conf"

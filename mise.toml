@@ -1,0 +1,10 @@
+# Tools for working on bivy itself, not installed on end-user machines.
+[tools]
+bats = "1.14.0"
+shellcheck = "0.11.0"
+
+[tasks.test]
+run = "bats tests"
+
+[tasks.lint]
+run = "shellcheck -x bootstrap bin/bivy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash"

@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# Installs Git and mise if missing, clones the bivy engine, installs the command.
+#
+#   curl -fsSL https://raw.githubusercontent.com/Yodatek/bivy/main/bootstrap | bash
+#
+# Bash reads this script from stdin in that form, so answers come from /dev/tty and
+# child processes get /dev/null. All the code sits in functions and main runs on
+# the last line: a truncated download executes nothing.
+set -euo pipefail
+
+BIVY_REPO=${BIVY_REPO:-https://github.com/Yodatek/bivy.git}
+BIVY_BRANCH=${BIVY_BRANCH:-main}
+
+info() { printf '%s\n' "$*" >&2; }
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+# Kept identical to the copy in lib/common.sh; tests/bootstrap.bats compares them.
+bivy_detect_os() {
+  case "$(uname -s)" in
+    Darwin) echo darwin ;;
+    Linux)
+      if grep -qi microsoft "${BIVY_PROC_VERSION:-/proc/version}" 2>/dev/null; then
+        if grep -qiE 'wsl2|microsoft-standard' "${BIVY_PROC_VERSION:-/proc/version}"; then
+          echo wsl
+        else
+          echo wsl1
+        fi
+      else
+        echo linux
+      fi
+      ;;
+    MINGW* | MSYS* | CYGWIN* | Windows_NT) echo windows ;;
+    *) echo unsupported ;;
+  esac
+}
+
+tty_path() { printf '%s' "${BIVY_TTY:-/dev/tty}"; }
+
+tty_available() {
+  (: <"$(tty_path)") 2>/dev/null
+}
+
+# With no terminal, the person running this cannot answer: the default applies.
+confirm() {
+  local question=$1 default=$2 answer=""
+  tty_available || {
+    [ "$default" = y ]
+    return
+  }
+  printf '%s ' "$question" >&2
+  IFS= read -r answer <"$(tty_path)" || answer=""
+  case "$answer" in
+    '') [ "$default" = y ] ;;
+    y | Y | yes | YES) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+as_root() {
+  if [ "$(id -u)" -eq 0 ]; then
+    "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    if tty_available; then
+      sudo "$@"
+    else
+      sudo -n "$@"
+    fi
+  else
+    die "root is required to run: $*"
+  fi
+}
+
+install_packages_linux() {
+  if command -v apt-get >/dev/null 2>&1; then
+    as_root apt-get update -qq </dev/null
+    as_root apt-get install -y -qq ca-certificates "$@" </dev/null
+  elif command -v dnf >/dev/null 2>&1; then
+    as_root dnf install -y "$@" </dev/null
+  elif command -v pacman >/dev/null 2>&1; then
+    as_root pacman -Sy --noconfirm "$@" </dev/null
+  elif command -v zypper >/dev/null 2>&1; then
+    as_root zypper --non-interactive install "$@" </dev/null
+  elif command -v apk >/dev/null 2>&1; then
+    as_root apk add "$@" </dev/null
+  else
+    die "no known package manager; install $* yourself and run this again"
+  fi
+}
+
+# /usr/bin/git on a fresh Mac is a stub that opens a dialog, so finding the command
+# is not enough: it has to run.
+git_works() {
+  git --version >/dev/null 2>&1
+}
+
+ensure_prerequisites() {
+  local os=$1 packages=""
+  git_works || packages="git"
+  command -v curl >/dev/null 2>&1 || packages="$packages curl"
+  [ -n "$packages" ] || return 0
+  # shellcheck disable=SC2086
+  set -- $packages
+
+  confirm "Install $*? [Y/n]" y || die "$* required; install it and run this again"
+  case "$os" in
+    darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install "$@" </dev/null
+      else
+        xcode-select --install >/dev/null 2>&1 || true
+        die "finish the Command Line Tools installation, then run this again"
+      fi
+      ;;
+    *) install_packages_linux "$@" ;;
+  esac
+  git_works || die "Git is still not available"
+}
+
+ensure_mise() {
+  if command -v mise >/dev/null 2>&1 || [ -x "$HOME/.local/bin/mise" ]; then
+    return 0
+  fi
+  info "Installing mise"
+  curl -fsSL https://mise.run </dev/null | sh >&2 || die "could not install mise"
+  [ -x "$HOME/.local/bin/mise" ] || die "mise was not installed in ~/.local/bin"
+}
+
+ensure_engine() {
+  local dir=$1
+  if [ -d "$dir/.git" ]; then
+    info "Updating $dir"
+    git -C "$dir" pull --quiet --ff-only </dev/null || die "could not update $dir"
+  elif [ -e "$dir" ]; then
+    die "$dir exists and is not a Git clone; move it away and run this again"
+  else
+    info "Cloning bivy into $dir"
+    mkdir -p "$(dirname "$dir")"
+    git clone --quiet --branch "$BIVY_BRANCH" -- "$BIVY_REPO" "$dir" </dev/null ||
+      die "could not clone $BIVY_REPO"
+  fi
+}
+
+install_command() {
+  local dir=$1 link="$HOME/.local/bin/bivy"
+  mkdir -p "$HOME/.local/bin"
+  if [ -e "$link" ] && [ ! -L "$link" ]; then
+    die "$link exists and is not a symlink; move it away and run this again"
+  fi
+  ln -sfn "$dir/bin/bivy" "$link"
+  info "Installed $link"
+}
+
+main() {
+  local os dir bin config
+  [ -n "${HOME:-}" ] && [ -d "$HOME" ] || die "HOME is not set to an existing directory"
+
+  os=$(bivy_detect_os)
+  case "$os" in
+    darwin | linux | wsl) ;;
+    windows) die "native Windows is not supported. Install WSL2 with 'wsl --install', then run this inside the Linux distribution." ;;
+    wsl1) die "WSL1 is not supported. Convert the distribution with 'wsl --set-version <distro> 2'." ;;
+    *) die "unsupported system: $(uname -s)" ;;
+  esac
+
+  ensure_prerequisites "$os"
+  ensure_mise
+  dir="${XDG_DATA_HOME:-$HOME/.local/share}/bivy"
+  ensure_engine "$dir"
+  install_command "$dir"
+
+  bin="$HOME/.local/bin/bivy"
+  config="${XDG_CONFIG_HOME:-$HOME/.config}/bivy/config.toml"
+  export PATH="$HOME/.local/bin:$PATH"
+
+  if [ ! -f "$config" ] && tty_available && confirm "Configure this machine now? [Y/n]" y; then
+    "$bin" init </dev/null
+    "$bin" apply </dev/null
+  else
+    info "Next: $bin init && $bin apply"
+  fi
+}
+
+main "$@"
+exit 0

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Entry point: resolves the engine directory, then dispatches to lib/cmd/*.
+set -euo pipefail
+
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir=$(cd -P "$(dirname "$src")" && pwd)
+  src=$(readlink "$src")
+  case "$src" in
+    /*) ;;
+    *) src="$dir/$src" ;;
+  esac
+done
+BIVY_ROOT=$(cd -P "$(dirname "$src")/.." && pwd)
+
+# shellcheck source=lib/common.sh
+. "$BIVY_ROOT/lib/common.sh"
+# shellcheck source=lib/config.sh
+. "$BIVY_ROOT/lib/config.sh"
+# shellcheck source=lib/profile.sh
+. "$BIVY_ROOT/lib/profile.sh"
+# shellcheck source=lib/shell.sh
+. "$BIVY_ROOT/lib/shell.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: bivy <command>
+
+Commands:
+  init [--config <file>]   Write ~/.config/bivy/config.toml and .env
+  apply                    Install tools, load shims, write profile files
+  doctor                   Check the real state; exits 1 if something is wrong
+  help                     Show this message
+EOF
+}
+
+command=${1:-help}
+[ $# -eq 0 ] || shift
+
+case "$command" in
+  init | apply | doctor)
+    # shellcheck source=/dev/null
+    . "$BIVY_ROOT/lib/cmd/$command.sh"
+    "cmd_$command" "$@"
+    ;;
+  help | -h | --help) usage ;;
+  *)
+    usage >&2
+    die "unknown command: $command"
+    ;;
+esac
