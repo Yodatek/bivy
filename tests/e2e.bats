@@ -5,14 +5,18 @@ load helper
 
 real_home_snapshot() {
   local f
-  for f in .zshrc .zshenv .zprofile .bashrc .bash_profile .profile .gitconfig \
-    .ssh/config .m2/settings.xml .config/bivy/config.toml .config/mise/conf.d/bivy.toml; do
+  for f in .zshrc .zshenv .zprofile .bashrc .bash_profile .profile .gitconfig .config/git/config \
+    .ssh/config .m2/settings.xml .config/bivy/config.toml .config/mise/conf.d/bivy.toml \
+    Library/LaunchAgents/bivy.env.plist .config/environment.d/50-bivy.conf; do
     if [ -e "$REAL_HOME/$f" ]; then
       printf '%s %s\n' "$f" "$(cksum <"$REAL_HOME/$f")"
     else
       printf '%s absent\n' "$f"
     fi
   done
+  if [ -x /bin/launchctl ]; then
+    printf 'launchctl PATH=%s\n' "$(/bin/launchctl getenv PATH)"
+  fi
 }
 
 setup_file() {
@@ -96,6 +100,16 @@ setup() {
   backups_after=$(ls "$HOME/.local/state/bivy/backups")
   [ "$before" = "$after" ]
   [ "$backups_before" = "$backups_after" ]
+}
+
+@test "the Git identity comes from config.toml" {
+  cd "$HOME"
+  [ "$(git config --global --includes --get user.email)" = test@example.org ]
+  [ "$(git config --global --includes --get user.name)" = "Test User" ]
+}
+
+@test "on macOS, apply sets the GUI PATH through the stub, never the real launchctl" {
+  [ -s "$BATS_FILE_TMPDIR/launchctl/calls" ] || [ "$(uname -s)" != Darwin ]
 }
 
 @test "the secret never appears in the output" {

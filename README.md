@@ -3,8 +3,8 @@
 A portable development environment for macOS, Linux and Windows through WSL2.
 
 bivy keeps your real `HOME`. Tools come from [mise](https://mise.jdx.dev), and their
-shims are on `PATH` in interactive and non-interactive shells alike, so IDEs and coding
-agents see the same tools, SSH keys and config files you do.
+shims are on `PATH` in interactive and non-interactive shells alike, and in graphical
+apps, so IDEs and coding agents see the same tools, SSH keys and config files you do.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Yodatek/bivy/main/bootstrap | bash
@@ -20,7 +20,7 @@ then offers to configure the machine.
 | --- | --- |
 | `bivy init` | Asks for a name, an e-mail and an optional profile URL. Writes `~/.config/bivy/config.toml` and `.env` in mode 600, and opens `.env` in `$EDITOR` only if the profile needs secrets that are still empty. |
 | `bivy init --config <file>` | The same without questions or editor, from an existing `config.toml`. |
-| `bivy apply` | Installs the tools, adds the shims to the startup files and writes the profile files. Running it again changes nothing. |
+| `bivy apply` | Installs the tools, puts the shims on the `PATH` of shells and graphical apps, sets the Git identity and writes the profile files. Running it again changes nothing. |
 | `bivy doctor` | Checks the real state and changes nothing. Exits 0 if all is well, 1 otherwise. |
 
 ## Three levels
@@ -37,7 +37,22 @@ profile = "git@example.org:me/my-profile.git"
 
 [tools]            # optional, overrides the profile
 node = "22"
+
+[[identities]]     # optional, another Git identity under a directory
+dir = "~/oss/"
+email = "ada@users.noreply.github.com"
+# name = "Ada"     # defaults to the name above
 ```
+
+## Git identity
+
+`name` and `email` become your Git identity. Each `[[identities]]` entry replaces it in
+the repositories under its directory, through `includeIf "gitdir:..."`. The directory
+starts with `~/` or `/`.
+
+bivy includes its generated config from the top of your global Git config, so what you
+wrote below keeps precedence. A `[user]` there wins over every identity bivy sets, even
+in an identity directory, so `apply` and `doctor` name the file that holds one.
 
 ## Profiles
 
@@ -69,6 +84,14 @@ trust.
 - A marked block at the top of `.zshenv`, `.zprofile`, `.bashrc` and your bash login file
   sources `~/.config/bivy/env.sh`. The rest of each file is kept, and a symlinked dotfile
   stays a symlink.
+- Graphical apps get the same `PATH`:
+  - on macOS, the LaunchAgent `~/Library/LaunchAgents/bivy.env.plist` runs
+    `launchctl setenv PATH` at each login, and `apply` runs it once right away;
+  - on Linux, `~/.config/environment.d/50-bivy.conf` is read by systemd from the next
+    login.
+- `~/.config/bivy/git/` is generated, and a marked block at the top of `~/.gitconfig`
+  includes it. `~/.config/git/config` gets the block instead when it is the only global
+  Git config.
 - Anything replaced is first copied to `~/.local/state/bivy/backups/<date>/`.
 
 ## Known limits
@@ -77,6 +100,11 @@ trust.
   the shims on its `PATH`. It inherits `PATH` from its parent, and `bash -lc` works.
 - mise shims refuse to run under a directory holding an untrusted `mise.toml`. Run
   `mise trust` in that project.
+- On macOS, apps already running keep their `PATH` until restarted, and apps reopened at
+  login may start before the LaunchAgent. macOS announces the agent as a background item.
+  If you turn it off in Login Items, `doctor` warns that graphical apps do not see the
+  shims.
+- On Linux, graphical apps get the shims only in a session started by systemd.
 - fish is not supported yet.
 
 ## Development

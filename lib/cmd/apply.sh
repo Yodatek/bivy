@@ -85,6 +85,8 @@ cmd_apply() {
   apply_tools
   shell_write_env
   shell_apply_blocks
+  gui_apply
+  git_apply
   apply_install_files
 
   case "${SHELL:-}" in

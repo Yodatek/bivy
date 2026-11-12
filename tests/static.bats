@@ -31,6 +31,10 @@ sources() {
     grep -q '^os_bash_login_default()' "$BIVY_ROOT/lib/os/$os.sh"
     grep -q '^os_preflight()' "$BIVY_ROOT/lib/os/$os.sh"
     grep -q '^os_doctor()' "$BIVY_ROOT/lib/os/$os.sh"
+    grep -q '^os_gui_file()' "$BIVY_ROOT/lib/os/$os.sh"
+    grep -q '^os_gui_render()' "$BIVY_ROOT/lib/os/$os.sh"
+    grep -q '^os_gui_activate()' "$BIVY_ROOT/lib/os/$os.sh"
+    grep -q '^os_gui_live_check()' "$BIVY_ROOT/lib/os/$os.sh"
   done
 }
 

@@ -10,6 +10,11 @@ BIVY_UNCHANGED=0
 BIVY_BACKED_UP=0
 ANSWER=""
 
+# Marks the lines bivy owns in a file it shares with the user. Both the shell and
+# Git read them as comments.
+BIVY_BLOCK_START='# >>> bivy >>>'
+BIVY_BLOCK_END='# <<< bivy <<<'
+
 info() { printf '%s\n' "$*" >&2; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
 die() {
@@ -31,6 +36,7 @@ bivy_init_paths() {
   BIVY_MISE_CONF="${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/mise}/conf.d/bivy.toml"
   BIVY_SHIMS_DIR="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims"
   BIVY_LOCAL_BIN="$HOME/.local/bin"
+  BIVY_GIT_DIR="$BIVY_CONFIG_DIR/git"
 }
 
 bivy_ensure_dirs() {
@@ -144,6 +150,53 @@ install_file() {
   fi
   BIVY_WRITTEN=$((BIVY_WRITTEN + 1))
   info "wrote $target"
+}
+
+# Inserts a marked block at the top of a file, or refreshes it in place. Content
+# outside the block is not touched, and a symlinked dotfile stays a symlink.
+block_apply() {
+  local file=$1 block=$2 starts ends current tmp
+  tmp=$(mktemp "$BIVY_STATE_DIR/block.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
+
+  if [ ! -e "$file" ]; then
+    printf '%s\n' "$block" >"$file" || die "cannot write $file"
+    rm -f "$tmp"
+    BIVY_WRITTEN=$((BIVY_WRITTEN + 1))
+    info "wrote $file"
+    return 0
+  fi
+
+  starts=$(grep -cxF "$BIVY_BLOCK_START" "$file") || starts=0
+  ends=$(grep -cxF "$BIVY_BLOCK_END" "$file") || ends=0
+
+  if [ "$starts" -eq 0 ] && [ "$ends" -eq 0 ]; then
+    { printf '%s\n' "$block" && cat "$file"; } >"$tmp"
+  elif [ "$starts" -eq 1 ] && [ "$ends" -eq 1 ]; then
+    current=$(awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
+      $0 == s { on = 1 }
+      on { print }
+      $0 == e { on = 0 }
+    ' "$file")
+    if [ "$current" = "$block" ]; then
+      rm -f "$tmp"
+      BIVY_UNCHANGED=$((BIVY_UNCHANGED + 1))
+      return 0
+    fi
+    BIVY_BLOCK_TEXT="$block" awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
+      $0 == s { on = 1; print ENVIRON["BIVY_BLOCK_TEXT"]; next }
+      $0 == e { on = 0; next }
+      !on { print }
+    ' "$file" >"$tmp"
+  else
+    rm -f "$tmp"
+    die "$file has an incomplete bivy block; remove its markers and run bivy apply again"
+  fi
+
+  backup_file "$file" follow-link
+  cat "$tmp" >"$file" || die "cannot write $file"
+  rm -f "$tmp"
+  BIVY_WRITTEN=$((BIVY_WRITTEN + 1))
+  info "updated $file"
 }
 
 # mise. MISE_YES avoids prompts when stdin is not a terminal, and running from

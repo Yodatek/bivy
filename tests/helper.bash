@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 # Every test runs with HOME in a temporary directory. BIVY_TTY never points at the
-# real terminal, and bivy refuses to run from here if HOME was not redirected.
+# real terminal, BIVY_LAUNCHCTL never at the real launchctl, and bivy refuses to
+# run from here if HOME was not redirected.
 
 BIVY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 REAL_HOME=${REAL_HOME:-$HOME}
@@ -19,6 +20,26 @@ sandbox_env() {
   export BIVY_TTY=/nonexistent/tty
   export SHELL=/bin/sh
   mkdir -p "$HOME"
+  stub_launchctl "${1%/*}/launchctl"
+}
+
+# Records every call in calls, and keeps PATH in a file instead of the real
+# graphical session. getenv of an unset variable prints nothing, like launchctl.
+stub_launchctl() {
+  local dir=$1
+  mkdir -p "$dir"
+  rm -f "$dir/calls" "$dir/PATH"
+  cat >"$dir/launchctl" <<'STUB'
+#!/bin/sh
+dir=$(dirname "$0")
+printf '%s\n' "$*" >>"$dir/calls"
+case "$1 $2" in
+  "getenv PATH") if [ -f "$dir/PATH" ]; then cat "$dir/PATH"; fi ;;
+  "setenv PATH") printf '%s\n' "$3" >"$dir/PATH" ;;
+esac
+STUB
+  chmod +x "$dir/launchctl"
+  export BIVY_LAUNCHCTL="$dir/launchctl"
 }
 
 # Shares downloads between tests, which keeps fresh homes fast.
@@ -45,6 +66,10 @@ load_libs() {
   . "$BIVY_ROOT/lib/profile.sh"
   # shellcheck source=lib/shell.sh
   . "$BIVY_ROOT/lib/shell.sh"
+  # shellcheck source=lib/gui.sh
+  . "$BIVY_ROOT/lib/gui.sh"
+  # shellcheck source=lib/git.sh
+  . "$BIVY_ROOT/lib/git.sh"
   bivy_init_paths
   bivy_load_os
   bivy_ensure_dirs

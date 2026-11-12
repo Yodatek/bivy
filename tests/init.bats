@@ -169,3 +169,23 @@ SCRIPT
   bivy init --config "$CONFIG.2"
   [ -n "$(find "$HOME/.local/state/bivy/backups" -name config.toml)" ]
 }
+
+@test "answering the questions again keeps the rest of config.toml" {
+  local file=$HOME/.config/bivy/config.toml
+  write_config "$CONFIG"
+  printf '\n[tools]\njq = "1.7.1"\n\n[[identities]]\ndir = "~/oss/"\nemail = "oss@example.org"\n' >>"$CONFIG"
+  bivy init --config "$CONFIG"
+  answers "New Name" "" none
+  run bivy init
+  [ "$status" -eq 0 ]
+  grep -qxF 'name = "New Name"' "$file"
+  grep -qxF 'email = "test@example.org"' "$file"
+  grep -qxF 'jq = "1.7.1"' "$file"
+  grep -qxF 'dir = "~/oss/"' "$file"
+  [ "$(grep -c '^name = ' "$file")" -eq 1 ]
+
+  cp "$file" "$BATS_TEST_TMPDIR/before"
+  answers "New Name" "" none
+  bivy init
+  cmp "$BATS_TEST_TMPDIR/before" "$file"
+}

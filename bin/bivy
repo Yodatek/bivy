@@ -21,6 +21,10 @@ BIVY_ROOT=$(cd -P "$(dirname "$src")/.." && pwd)
 . "$BIVY_ROOT/lib/profile.sh"
 # shellcheck source=lib/shell.sh
 . "$BIVY_ROOT/lib/shell.sh"
+# shellcheck source=lib/gui.sh
+. "$BIVY_ROOT/lib/gui.sh"
+# shellcheck source=lib/git.sh
+. "$BIVY_ROOT/lib/git.sh"
 
 usage() {
   cat <<'EOF'
@@ -28,7 +32,8 @@ Usage: bivy <command>
 
 Commands:
   init [--config <file>]   Write ~/.config/bivy/config.toml and .env
-  apply                    Install tools, load shims, write profile files
+  apply                    Install tools, load shims, set the Git identity,
+                           write profile files
   doctor                   Check the real state; exits 1 if something is wrong
   help                     Show this message
 EOF

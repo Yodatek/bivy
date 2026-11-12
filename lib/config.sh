@@ -6,6 +6,7 @@ CFG_NAME=""
 CFG_EMAIL=""
 CFG_PROFILE=""
 CFG_TOOLS=""
+CFG_IDENTITIES=""
 
 BIVY_TOOL_NAME_RE='^[A-Za-z0-9@][A-Za-z0-9@._:/+-]*$'
 BIVY_TOOL_VERSION_RE='^[A-Za-z0-9][A-Za-z0-9._:+-]*$'
@@ -51,6 +52,48 @@ toml_tools() {
   done <<<"$raw"
 }
 
+# A directory for includeIf "gitdir:", absolute or under ~/. A trailing slash makes
+# it match every repository below, which is what a directory of projects needs.
+identity_dir() {
+  local dir=$1
+  # A literal ~/, which Git expands itself.
+  # shellcheck disable=SC2088
+  case "$dir" in
+    '~/'?* | /?*) ;;
+    *) return 1 ;;
+  esac
+  ! has_control_chars "$dir" || return 1
+  case "$dir" in
+    */) printf '%s' "$dir" ;;
+    *) printf '%s/' "$dir" ;;
+  esac
+}
+
+# Prints "dir<TAB>name<TAB>email" for each [[identities]] entry. The name defaults
+# to the top-level one, which must be read first. Every field is checked against
+# control characters, so tabs and newlines cannot shift the columns.
+toml_identities() {
+  local file=$1 tag count i entry dir name email
+  tag=$(toml_query "$file" '(.identities // []) | tag') || die "$file is not valid TOML"
+  [ "$tag" = '!!seq' ] || die "$file: identities must be written as [[identities]] tables"
+  count=$(toml_query "$file" '(.identities // []) | length') || die "$file is not valid TOML"
+  i=0
+  while [ "$i" -lt "$count" ]; do
+    entry="identities entry $((i + 1))"
+    tag=$(toml_query "$file" ".identities[$i] | tag") || die "$file is not valid TOML"
+    [ "$tag" = '!!map' ] || die "$file: $entry must be a table"
+    dir=$(toml_string "$file" "identities[$i].dir") || exit 1
+    name=$(toml_string "$file" "identities[$i].name") || exit 1
+    email=$(toml_string "$file" "identities[$i].email") || exit 1
+    dir=$(identity_dir "$dir") || die "$file: $entry: dir must start with ~/ or /"
+    [ -n "$name" ] || name=$CFG_NAME
+    valid_name "$name" || die "$file: $entry: invalid name"
+    valid_email "$email" || die "$file: $entry: email is not a valid address"
+    printf '%s\t%s\t%s\n' "$dir" "$name" "$email"
+    i=$((i + 1))
+  done
+}
+
 config_read() {
   local file=$1 problem
   CFG_NAME=$(toml_string "$file" name) || exit 1
@@ -61,6 +104,7 @@ config_read() {
   valid_email "$CFG_EMAIL" || die "$file: email is not a valid address"
   problem=$(profile_url_problem "$CFG_PROFILE")
   [ -z "$problem" ] || die "$file: $problem"
+  CFG_IDENTITIES=$(toml_identities "$file") || exit 1
 }
 
 config_load() {
@@ -68,15 +112,31 @@ config_load() {
   config_read "$BIVY_CONFIG_FILE"
 }
 
+BIVY_CONFIG_HEADER='# Machine configuration for bivy. Never versioned.'
+
+# Rewrites the three answers of bivy init. The rest of an existing file, such as
+# [tools] or [[identities]], is kept as it is.
 config_write() {
   local name=$1 email=$2 profile=$3 tmp
   tmp=$(mktemp "$BIVY_STATE_DIR/config.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
   {
-    echo '# Machine configuration for bivy. Never versioned.'
+    printf '%s\n' "$BIVY_CONFIG_HEADER"
     printf 'name = "%s"\n' "$(toml_escape "$name")"
     printf 'email = "%s"\n' "$(toml_escape "$email")"
     printf 'profile = "%s"\n' "$(toml_escape "$profile")"
+    if [ -f "$BIVY_CONFIG_FILE" ]; then
+      awk -v header="$BIVY_CONFIG_HEADER" '
+        /^[[:space:]]*\[/ { tables = 1 }
+        !tables && /^[[:space:]]*(name|email|profile)[[:space:]]*=/ { next }
+        !tables && $0 == header { next }
+        { print }
+      ' "$BIVY_CONFIG_FILE"
+    fi
   } >"$tmp"
+  if ! (config_read "$tmp"); then
+    rm -f "$tmp"
+    die "could not update $BIVY_CONFIG_FILE; fix it by hand or remove it"
+  fi
   install_file "$tmp" "$BIVY_CONFIG_FILE" 600
   rm -f "$tmp"
 }

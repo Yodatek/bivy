@@ -17,6 +17,13 @@ setup() {
   cp -R "$BATS_FILE_TMPDIR/seed/." "$HOME/"
 }
 
+gui_file() {
+  case "$(uname -s)" in
+    Darwin) echo "$HOME/Library/LaunchAgents/bivy.env.plist" ;;
+    *) echo "$HOME/.config/environment.d/50-bivy.conf" ;;
+  esac
+}
+
 @test "healthy state exits 0" {
   run bivy doctor
   [ "$status" -eq 0 ]
@@ -76,7 +83,7 @@ setup() {
 @test "missing mise exits 1 and does not crash" {
   mkdir "$BATS_TEST_TMPDIR/bin"
   local tool
-  for tool in bash env sh uname grep tail head stat dirname readlink zsh git awk tr; do
+  for tool in bash env sh uname grep tail head stat dirname readlink zsh git awk tr mktemp cmp rm cat sed; do
     ln -s "$(command -v "$tool")" "$BATS_TEST_TMPDIR/bin/$tool" 2>/dev/null || true
   done
   PATH=$BATS_TEST_TMPDIR/bin run bivy doctor
@@ -114,4 +121,46 @@ setup() {
   run bivy doctor
   [ "$status" -eq 1 ]
   [[ "$output" == *"example.conf has mode 644"* ]]
+}
+
+@test "a removed file for graphical apps exits 1" {
+  rm "$(gui_file)"
+  run bivy doctor
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"$(gui_file) is missing"* ]]
+}
+
+@test "macOS: doctor reads the PATH of graphical apps" {
+  [ "$(uname -s)" = Darwin ] || skip "macOS only"
+  run bivy doctor
+  [[ "$output" == *"[warn] graphical apps started now do not see the shims"* ]]
+  bivy apply
+  run bivy doctor
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[ok]   shims on the PATH of graphical apps"* ]]
+}
+
+@test "a removed Git block exits 1" {
+  printf '[core]\n' >"$HOME/.gitconfig"
+  run bivy doctor
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"no bivy block in $HOME/.gitconfig"* ]]
+}
+
+@test "an identity added to config.toml without apply exits 1" {
+  printf '\n[[identities]]\ndir = "~/oss/"\nemail = "oss@example.org"\n' >>"$HOME/.config/bivy/config.toml"
+  run bivy doctor
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"does not match config.toml"* ]]
+  bivy apply
+  run bivy doctor
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"and 1 by directory"* ]]
+}
+
+@test "a [user] after the bivy include is a warning, not a failure" {
+  printf '[user]\n\temail = old@example.org\n' >>"$HOME/.gitconfig"
+  run bivy doctor
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[warn]"*"$HOME/.gitconfig"* ]]
 }

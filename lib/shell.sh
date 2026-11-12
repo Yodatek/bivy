@@ -5,9 +5,6 @@
 # Shims rather than `mise activate`: they behave the same with or without an
 # interactive prompt, which is what IDEs and agents need.
 
-BIVY_BLOCK_START='# >>> bivy >>>'
-BIVY_BLOCK_END='# <<< bivy <<<'
-
 # Writes a path as shell source, using $HOME when possible so that the block
 # stays valid in a dotfiles repository shared between machines.
 shell_path_literal() {
@@ -66,53 +63,9 @@ shell_block() {
   printf '%s\n' "$BIVY_BLOCK_END"
 }
 
-# Inserts the block at the top of the file, above the "return if not interactive"
-# guard of a stock .bashrc, or refreshes it in place. Content outside the block is
-# not touched, and a symlinked dotfile stays a symlink.
+# Above the "return if not interactive" guard of a stock .bashrc.
 shell_block_apply() {
-  local file=$1 block starts ends current tmp
-  block=$(shell_block)
-  tmp=$(mktemp "$BIVY_STATE_DIR/block.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
-
-  if [ ! -e "$file" ]; then
-    printf '%s\n' "$block" >"$file" || die "cannot write $file"
-    rm -f "$tmp"
-    BIVY_WRITTEN=$((BIVY_WRITTEN + 1))
-    info "wrote $file"
-    return 0
-  fi
-
-  starts=$(grep -cxF "$BIVY_BLOCK_START" "$file") || starts=0
-  ends=$(grep -cxF "$BIVY_BLOCK_END" "$file") || ends=0
-
-  if [ "$starts" -eq 0 ] && [ "$ends" -eq 0 ]; then
-    { printf '%s\n' "$block" && cat "$file"; } >"$tmp"
-  elif [ "$starts" -eq 1 ] && [ "$ends" -eq 1 ]; then
-    current=$(awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
-      $0 == s { on = 1 }
-      on { print }
-      $0 == e { on = 0 }
-    ' "$file")
-    if [ "$current" = "$block" ]; then
-      rm -f "$tmp"
-      BIVY_UNCHANGED=$((BIVY_UNCHANGED + 1))
-      return 0
-    fi
-    BIVY_BLOCK_TEXT="$block" awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
-      $0 == s { on = 1; print ENVIRON["BIVY_BLOCK_TEXT"]; next }
-      $0 == e { on = 0; next }
-      !on { print }
-    ' "$file" >"$tmp"
-  else
-    rm -f "$tmp"
-    die "$file has an incomplete bivy block; remove its markers and run bivy apply again"
-  fi
-
-  backup_file "$file" follow-link
-  cat "$tmp" >"$file" || die "cannot write $file"
-  rm -f "$tmp"
-  BIVY_WRITTEN=$((BIVY_WRITTEN + 1))
-  info "updated $file"
+  block_apply "$1" "$(shell_block)"
 }
 
 # Bash reads only the first of these it finds at login, so creating another one
