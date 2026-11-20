@@ -164,3 +164,15 @@ gui_file() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"[warn]"*"$HOME/.gitconfig"* ]]
 }
+
+@test "a login file that puts a directory before the shims is reported" {
+  mkdir -p "$HOME/fakebin"
+  printf '#!/bin/sh\necho fake\n' >"$HOME/fakebin/yq"
+  chmod +x "$HOME/fakebin/yq"
+  local login
+  login=$(find "$HOME" -maxdepth 1 \( -name .bash_profile -o -name .bash_login -o -name .profile \) | head -n 1)
+  printf 'export PATH="$HOME/fakebin:$PATH"\n' >>"$login"
+  run bivy doctor
+  echo "$output"
+  [[ "$output" == *"in 'bash -lc', ~/fakebin hides yq before the mise shims"* ]]
+}

@@ -163,7 +163,7 @@ banner_tools() {
 }
 
 banner_checks() {
-  local secrets missing target path mode state overriding
+  local secrets missing target path mode state overriding shadowed
   if [ ! -f "$BIVY_APPLIED" ]; then
     banner_warn "bivy apply has not run yet"
     return 0
@@ -172,6 +172,12 @@ banner_checks() {
     *":$BIVY_SHIMS_DIR:"*) ;;
     *) banner_fail "the mise shims are not on the PATH of this shell; open a new terminal" ;;
   esac
+  if mise_find >/dev/null; then
+    shadowed=$(shims_shadowed "$PATH" "$(mise_active_commands)")
+  else
+    shadowed=""
+  fi
+  [ -z "$shadowed" ] || banner_warn "$(shims_shadowed_summary "$shadowed") before the mise shims"
   [ ! "$BIVY_CONFIG_FILE" -nt "$BIVY_APPLIED" ] ||
     banner_warn "config.toml changed since the last bivy apply"
   [ ! "$BIVY_ENV_FILE" -nt "$BIVY_APPLIED" ] ||

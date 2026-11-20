@@ -91,9 +91,9 @@ shell_block() {
   printf '%s\n' "$BIVY_BLOCK_END"
 }
 
-# Above the "return if not interactive" guard of a stock .bashrc.
+# Usage: shell_block_apply FILE [PARTS] [top|bottom]
 shell_block_apply() {
-  block_apply "$1" "$(shell_block "${2:-env}")"
+  block_apply "$1" "$(shell_block "${2:-env}")" "${3:-top}"
 }
 
 # Bash reads only the first of these it finds at login, so creating another one
@@ -109,25 +109,84 @@ shell_bash_login_file() {
   printf '%s\n' "$HOME/$(os_bash_login_default)"
 }
 
-# Prints "file<TAB>parts". .zshenv covers every zsh, the login files come after
-# path_helper, .bashrc covers interactive bash and commands run over SSH. Only the
-# files that interactive shells read load the banner.
+# Prints "file<TAB>parts<TAB>position". .zshenv covers every zsh, .bashrc covers
+# interactive bash and commands run over SSH; their block goes at the top, above
+# the "return if not interactive" guard of a stock .bashrc. The login files run
+# after path_helper and often prepend to PATH themselves, as brew shellenv does, so
+# their block goes at the bottom. Only the files that interactive shells read load
+# the banner.
 shell_startup_files() {
   local zdir=${ZDOTDIR:-$HOME}
   if command -v zsh >/dev/null 2>&1 || [ -e "$zdir/.zshenv" ]; then
-    printf '%s\tenv\n' "$zdir/.zshenv" "$zdir/.zprofile"
-    printf '%s\tinteractive\n' "$zdir/.zshrc"
+    printf '%s\tenv\ttop\n' "$zdir/.zshenv"
+    printf '%s\tenv\tbottom\n' "$zdir/.zprofile"
+    printf '%s\tinteractive\ttop\n' "$zdir/.zshrc"
   fi
   if command -v bash >/dev/null 2>&1; then
-    printf '%s\tenv interactive\n' "$HOME/.bashrc" "$(shell_bash_login_file)"
+    printf '%s\tenv interactive\ttop\n' "$HOME/.bashrc"
+    printf '%s\tenv interactive\tbottom\n' "$(shell_bash_login_file)"
   fi
 }
 
 shell_apply_blocks() {
-  local file files parts
+  local file files parts position
   files=$(shell_startup_files)
-  while IFS=$'\t' read -r file parts; do
+  while IFS=$'\t' read -r file parts position; do
     [ -n "$file" ] || continue
-    shell_block_apply "$file" "$parts"
+    shell_block_apply "$file" "$parts" "$position"
   done <<<"$files"
+}
+
+# Prints the commands of the tools that mise has active from HOME. Only their shims
+# work everywhere: the shim of a tool set for one project fails elsewhere, so
+# another copy coming first in PATH is no problem.
+mise_active_commands() {
+  local dir file
+  mise_run bin-paths 2>/dev/null | while IFS= read -r dir; do
+    for file in "$dir"/*; do
+      if [ -f "$file" ] && [ -x "$file" ]; then
+        printf '%s\n' "${file##*/}"
+      fi
+    done
+  done | sort -u
+}
+
+# Prints "command<TAB>dir" for each command given, one per line, whose mise shim a
+# directory placed before the shims in the given PATH hides. Plain bash with no
+# process started, as the banner runs it in every new terminal. Nothing when the
+# shims are not on that PATH at all.
+shims_shadowed() {
+  local search=$1 commands=$2 name dir
+  local -a dirs
+  case ":$search:" in
+    *":$BIVY_SHIMS_DIR:"*) ;;
+    *) return 0 ;;
+  esac
+  IFS=: read -r -a dirs <<<"$search"
+  while IFS= read -r name; do
+    [ -n "$name" ] && [ -x "$BIVY_SHIMS_DIR/$name" ] || continue
+    for dir in ${dirs[@]+"${dirs[@]}"}; do
+      [ "$dir" != "$BIVY_SHIMS_DIR" ] || break
+      if [ -n "$dir" ] && [ -f "$dir/$name" ] && [ -x "$dir/$name" ]; then
+        printf '%s\t%s\n' "$name" "$dir"
+        break
+      fi
+    done
+  done <<<"$commands"
+}
+
+# One phrase per hiding directory: "/opt/homebrew/bin hides helm, sops".
+shims_shadowed_summary() {
+  printf '%s\n' "$1" | awk -F'\t' -v home="$HOME/" '
+    NF == 2 {
+      if (!($2 in tools)) order[++n] = $2
+      tools[$2] = tools[$2] (tools[$2] == "" ? "" : ", ") $1
+    }
+    END {
+      for (i = 1; i <= n; i++) {
+        dir = order[i]
+        if (index(dir, home) == 1) dir = "~/" substr(dir, length(home) + 1)
+        printf "%s%s hides %s", (i > 1 ? "; " : ""), dir, tools[order[i]]
+      }
+    }'
 }

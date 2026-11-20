@@ -39,6 +39,17 @@ doctor_check_shell() {
   fi
 }
 
+# A shim hidden by another directory runs a version that mise did not choose.
+doctor_check_shadowed() {
+  local shell_cmd=$1 flags=$2 commands=$3 path shadowed
+  command -v "$shell_cmd" >/dev/null 2>&1 || return 0
+  # shellcheck disable=SC2016 # Expanded by the probed shell.
+  path=$(doctor_probe "$shell_cmd" "$flags" 'printf "%s\n" "$PATH"') || return 0
+  shadowed=$(shims_shadowed "$path" "$commands")
+  [ -z "$shadowed" ] ||
+    doctor_warn "in '$shell_cmd $flags', $(shims_shadowed_summary "$shadowed") before the mise shims"
+}
+
 doctor_check_mise() {
   local version
   if ! mise_find >/dev/null; then
@@ -68,9 +79,9 @@ doctor_check_env_file() {
 }
 
 doctor_check_blocks() {
-  local files file parts
+  local files file parts position
   files=$(shell_startup_files)
-  while IFS=$'\t' read -r file parts; do
+  while IFS=$'\t' read -r file parts position; do
     [ -n "$file" ] || continue
     if [ -f "$file" ] && grep -qxF "$BIVY_BLOCK_START" "$file"; then
       doctor_ok "bivy block in $file"
@@ -191,6 +202,7 @@ doctor_check_profile() {
 }
 
 cmd_doctor() {
+  local commands
   [ $# -eq 0 ] || die "doctor takes no argument"
 
   bivy_init_paths
@@ -229,6 +241,11 @@ cmd_doctor() {
   doctor_check_shell zsh -c
   doctor_check_shell zsh -lc
   doctor_check_shell bash -lc
+  if mise_find >/dev/null; then
+    commands=$(mise_active_commands) || commands=""
+    doctor_check_shadowed zsh -lc "$commands"
+    doctor_check_shadowed bash -lc "$commands"
+  fi
   doctor_check_gui
 
   case "${SHELL:-}" in

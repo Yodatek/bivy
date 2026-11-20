@@ -77,6 +77,15 @@ banner() {
   [[ "$output" == *"shims are not on the PATH of this shell"* ]]
 }
 
+@test "a command that an earlier directory of PATH hides is reported" {
+  mkdir -p "$HOME/fakebin"
+  printf '#!/bin/sh\necho fake\n' >"$HOME/fakebin/jq"
+  chmod +x "$HOME/fakebin/jq"
+  run env PATH="$HOME/fakebin:$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  echo "$output"
+  [[ "$output" == *"~/fakebin hides jq before the mise shims"* ]]
+}
+
 @test "a tool that is declared but not installed is reported" {
   printf '[tools]\njq = "1.6"\n' >"$HOME/.config/mise/conf.d/zz-test.toml"
   run banner

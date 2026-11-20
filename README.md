@@ -84,7 +84,7 @@ trust.
 Each new terminal shows a short banner: who and where, the CPU, memory and disk load,
 the tools mise provides, then `all good` or one line per problem. It only makes checks
 that take no time, such as empty secrets, missing files, a config changed since the
-last `apply` or a tool not installed. `bivy doctor` makes the thorough ones.
+last `apply`, a tool not installed, or a command that another directory of PATH hides. `bivy doctor` makes the thorough ones.
 
 It stays quiet in a shell that is not interactive or does not write to a terminal, which
 covers scripts, SSH commands, and IDEs reading the shell environment. It also stays quiet
@@ -100,10 +100,12 @@ in the terminals of VS Code and its forks, Zed, JetBrains IDEs, Emacs and Claude
 
 - `~/.config/mise/conf.d/bivy.toml` is generated. Your `~/.config/mise/config.toml` is
   not touched.
-- A marked block at the top of `.zshenv`, `.zprofile`, `.bashrc` and your bash login file
-  sources `~/.config/bivy/env.sh`, and the one in `.zshrc`, `.bashrc` and the bash login
-  file sources `~/.config/bivy/interactive.sh`, which shows the banner. The rest of each
-  file is kept, and a symlinked dotfile stays a symlink.
+- A marked block in `.zshenv`, `.zprofile`, `.bashrc` and your bash login file sources
+  `~/.config/bivy/env.sh`, and the one in `.zshrc`, `.bashrc` and the bash login file
+  sources `~/.config/bivy/interactive.sh`, which shows the banner. The block sits at the
+  top of `.zshenv`, `.zshrc` and `.bashrc`, and at the bottom of the login files, after
+  what they add to PATH, such as `brew shellenv`. The rest of each file is kept, and a
+  symlinked dotfile stays a symlink.
 - Graphical apps get the same `PATH`:
   - on macOS, the LaunchAgent `~/Library/LaunchAgents/bivy.env.plist` runs
     `launchctl setenv PATH` at each login, and `apply` runs it once right away;

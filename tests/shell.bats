@@ -138,3 +138,41 @@ env_sh_path() {
   grep -qF 'env.sh' "$HOME/.bashrc"
   grep -qF 'interactive.sh' "$HOME/.bashrc"
 }
+
+@test "a login file gets the block at the end, after what it adds to PATH" {
+  printf 'eval "$(brew shellenv)"\n' >"$HOME/.zprofile"
+  shell_block_apply "$HOME/.zprofile" env bottom
+  [ "$(head -n 1 "$HOME/.zprofile")" = 'eval "$(brew shellenv)"' ]
+  [ "$(tail -n 1 "$HOME/.zprofile")" = '# <<< bivy <<<' ]
+}
+
+@test "a block at the top of a login file moves to the end, the rest stays" {
+  printf 'export A=1\n# end of mine' >"$HOME/.zprofile"
+  shell_block_apply "$HOME/.zprofile" env top
+  shell_block_apply "$HOME/.zprofile" env bottom
+  [ "$(sed -n 1p "$HOME/.zprofile")" = 'export A=1' ]
+  [ "$(sed -n 2p "$HOME/.zprofile")" = '# end of mine' ]
+  [ "$(sed -n 3p "$HOME/.zprofile")" = '# >>> bivy >>>' ]
+  [ "$(grep -c '# >>> bivy >>>' "$HOME/.zprofile")" -eq 1 ]
+  [ -n "$(find "$HOME/.local/state/bivy/backups" -name .zprofile)" ]
+}
+
+@test "a block already at the end is left alone, with no backup" {
+  printf 'export A=1\n' >"$HOME/.zprofile"
+  shell_block_apply "$HOME/.zprofile" env bottom
+  BIVY_WRITTEN=0
+  BIVY_BACKED_UP=0
+  shell_block_apply "$HOME/.zprofile" env bottom
+  [ "$BIVY_WRITTEN" -eq 0 ]
+  [ "$BIVY_BACKED_UP" -eq 0 ]
+}
+
+@test "in a login zsh, the shims come before what .zprofile prepends" {
+  command -v zsh >/dev/null || skip "zsh is not installed"
+  mkdir -p "$HOME/fakebin"
+  printf 'export PATH="$HOME/fakebin:$PATH"\n' >"$HOME/.zprofile"
+  shell_write_env
+  shell_apply_blocks
+  run env -i HOME="$HOME" PATH=/usr/bin:/bin zsh -lc 'printf "%s" "$PATH"'
+  [[ "$output" == "$BIVY_SHIMS_DIR:"* ]]
+}

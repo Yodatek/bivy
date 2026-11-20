@@ -154,10 +154,12 @@ install_file() {
   info "wrote $target"
 }
 
-# Inserts a marked block at the top of a file, or refreshes it in place. Content
-# outside the block is not touched, and a symlinked dotfile stays a symlink.
+# Puts a marked block at the top or at the bottom of a file. At the top, a block
+# already there is refreshed in place. At the bottom, it moves to the end, after
+# whatever the file adds to PATH. Content outside the block is not touched, and a
+# symlinked dotfile stays a symlink.
 block_apply() {
-  local file=$1 block=$2 starts ends current tmp
+  local file=$1 block=$2 position=${3:-top} starts ends current tmp
   tmp=$(mktemp "$BIVY_STATE_DIR/block.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
 
   if [ ! -e "$file" ]; then
@@ -171,9 +173,28 @@ block_apply() {
   starts=$(grep -cxF "$BIVY_BLOCK_START" "$file") || starts=0
   ends=$(grep -cxF "$BIVY_BLOCK_END" "$file") || ends=0
 
-  if [ "$starts" -eq 0 ] && [ "$ends" -eq 0 ]; then
+  if [ "$starts" -ne "$ends" ] || [ "$starts" -gt 1 ]; then
+    rm -f "$tmp"
+    die "$file has an incomplete bivy block; remove its markers and run bivy apply again"
+  fi
+
+  if [ "$position" = bottom ]; then
+    {
+      awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
+        $0 == s { on = 1 }
+        !on { print }
+        $0 == e { on = 0 }
+      ' "$file"
+      printf '%s\n' "$block"
+    } >"$tmp"
+    if cmp -s "$tmp" "$file"; then
+      rm -f "$tmp"
+      BIVY_UNCHANGED=$((BIVY_UNCHANGED + 1))
+      return 0
+    fi
+  elif [ "$starts" -eq 0 ]; then
     { printf '%s\n' "$block" && cat "$file"; } >"$tmp"
-  elif [ "$starts" -eq 1 ] && [ "$ends" -eq 1 ]; then
+  else
     current=$(awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
       $0 == s { on = 1 }
       on { print }
@@ -189,9 +210,6 @@ block_apply() {
       $0 == e { on = 0; next }
       !on { print }
     ' "$file" >"$tmp"
-  else
-    rm -f "$tmp"
-    die "$file has an incomplete bivy block; remove its markers and run bivy apply again"
   fi
 
   backup_file "$file" follow-link
