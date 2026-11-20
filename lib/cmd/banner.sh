@@ -117,10 +117,11 @@ banner_metrics() {
   fi
 }
 
-# One mise call gives both the tools and, on stderr, those not installed. yq is left
-# out: bivy declares it for itself.
+# One mise call gives both the tools and, on stderr, those not installed. Versions of
+# mise word that warning differently, so any tool@version that a warning about a
+# missing tool names is kept. yq is left out: bivy declares it for itself.
 banner_tools() {
-  local out line name versions version first others parts="" missing=""
+  local out line name versions version word first others parts="" missing=""
   if ! mise_find >/dev/null; then
     banner_fail "mise is not installed; run the bivy bootstrap"
     return 0
@@ -128,9 +129,13 @@ banner_tools() {
   out=$(mise_run current 2>&1) || out=""
   while IFS= read -r line; do
     case "$line" in
-      "mise "*"but not installed"*)
-        line=${line%% is specified*}
-        missing="$missing ${line##* }"
+      "mise "*"missing"* | "mise "*"not installed"*)
+        for word in $line; do
+          word=${word%[,:;.]}
+          case "$word" in
+            ?*@?*) missing="$missing $word" ;;
+          esac
+        done
         continue
         ;;
       "mise "* | "") continue ;;
@@ -206,6 +211,8 @@ cmd_banner() {
   if [ "$auto" -eq 1 ] && banner_quiet; then
     return 0
   fi
+  # A part that fails shows its error and the rest still prints.
+  set +e +o pipefail
 
   bivy_init_paths
   bivy_load_os

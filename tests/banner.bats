@@ -31,6 +31,7 @@ banner() {
 
 @test "a healthy machine: who and where, its load, its tools, all good" {
   run banner
+  echo "$output"
   [ "$status" -eq 0 ]
   [[ "${lines[0]}" == *bivy*"$(id -un)@"*"profile profile"* ]]
   [[ "${lines[1]}" == *"cpu "*"%"* ]]
@@ -58,6 +59,7 @@ banner() {
   rm "$HOME/.config/bivy-example/example.conf"
   printf '[user]\n\temail = old@example.org\n' >>"$HOME/.gitconfig"
   run banner
+  echo "$output"
   [ "$status" -eq 0 ]
   [[ "$output" == *"empty secrets in ~/.config/bivy/.env: EXAMPLE_API_TOKEN"* ]]
   [[ "$output" == *"~/.config/bivy/.env has mode 644, expected 600"* ]]
@@ -71,12 +73,14 @@ banner() {
 
 @test "a shell without the shims on its PATH is reported" {
   run "$BIVY_ROOT/bin/bivy" banner
+  echo "$output"
   [[ "$output" == *"shims are not on the PATH of this shell"* ]]
 }
 
 @test "a tool that is declared but not installed is reported" {
   printf '[tools]\njq = "1.6"\n' >"$HOME/.config/mise/conf.d/zz-test.toml"
   run banner
+  echo "$output"
   [ "$status" -eq 0 ]
   [[ "$output" == *"not installed: jq@1.6; run: bivy apply"* ]]
 }
@@ -84,6 +88,7 @@ banner() {
 @test "before the first apply, the banner says so" {
   rm "$HOME/.local/state/bivy/applied"
   run banner
+  echo "$output"
   [ "$status" -eq 0 ]
   [[ "$output" == *"bivy apply has not run yet"* ]]
 }
@@ -92,6 +97,7 @@ banner() {
   [ "$(uname -s)" = Darwin ] || skip "macOS only"
   rm "${BIVY_LAUNCHCTL%/*}/PATH"
   run banner
+  echo "$output"
   [[ "$output" == *"graphical apps do not see the shims"* ]]
 }
 
@@ -142,6 +148,7 @@ banner() {
   ! grep -q 'banner --auto' "$HOME/.config/bivy/interactive.sh"
   grep -qF 'banner = false' "$HOME/.config/bivy/interactive.sh"
   run banner
+  echo "$output"
   [[ "$output" == *"all good"* ]]
 }
 
