@@ -34,7 +34,9 @@ sources() {
     grep -q '^os_gui_file()' "$BIVY_ROOT/lib/os/$os.sh"
     grep -q '^os_gui_render()' "$BIVY_ROOT/lib/os/$os.sh"
     grep -q '^os_gui_activate()' "$BIVY_ROOT/lib/os/$os.sh"
-    grep -q '^os_gui_live_check()' "$BIVY_ROOT/lib/os/$os.sh"
+    grep -q '^os_gui_session_state()' "$BIVY_ROOT/lib/os/$os.sh"
+    grep -q '^os_cpu_load()' "$BIVY_ROOT/lib/os/$os.sh"
+    grep -q '^os_memory()' "$BIVY_ROOT/lib/os/$os.sh"
   done
 }
 

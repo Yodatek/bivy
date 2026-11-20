@@ -7,6 +7,7 @@ CFG_EMAIL=""
 CFG_PROFILE=""
 CFG_TOOLS=""
 CFG_IDENTITIES=""
+CFG_BANNER=true
 
 BIVY_TOOL_NAME_RE='^[A-Za-z0-9@][A-Za-z0-9@._:/+-]*$'
 BIVY_TOOL_VERSION_RE='^[A-Za-z0-9][A-Za-z0-9._:+-]*$'
@@ -111,6 +112,17 @@ toml_identities() {
   done
 }
 
+# Prints true or false for a top-level boolean, or the default when it is absent.
+toml_bool() {
+  local file=$1 key=$2 default=$3 tag
+  tag=$(toml_query "$file" ".$key | tag") || die "$file is not valid TOML"
+  case "$tag" in
+    '!!null') printf '%s' "$default" ;;
+    '!!bool') toml_query "$file" ".$key" ;;
+    *) die "$file: $key must be true or false" ;;
+  esac
+}
+
 config_read() {
   local file=$1 problem
   CFG_NAME=$(toml_string "$file" name) || exit 1
@@ -122,6 +134,7 @@ config_read() {
   problem=$(profile_url_problem "$CFG_PROFILE")
   [ -z "$problem" ] || die "$file: $problem"
   CFG_IDENTITIES=$(toml_identities "$file") || exit 1
+  CFG_BANNER=$(toml_bool "$file" banner true) || exit 1
 }
 
 config_load() {

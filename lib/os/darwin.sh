@@ -67,11 +67,39 @@ os_gui_activate() {
   fi
 }
 
-os_gui_live_check() {
+# 0 when graphical apps started now see the shims, 1 when they do not.
+os_gui_session_state() {
   local current
   current=$("$BIVY_LAUNCHCTL" getenv PATH 2>/dev/null) || current=""
   case ":$current:" in
-    *":$BIVY_SHIMS_DIR:"*) doctor_ok "shims on the PATH of graphical apps" ;;
-    *) doctor_warn "graphical apps started now do not see the shims; run bivy apply, or log out and back in" ;;
+    *":$BIVY_SHIMS_DIR:"*) return 0 ;;
   esac
+  return 1
+}
+
+# Prints the one-minute load average and the number of cores. Full paths: /usr/sbin
+# is missing from the minimal PATH that some apps give their shells.
+os_cpu_load() {
+  local load
+  load=$(/usr/sbin/sysctl -n vm.loadavg) || return 1
+  load=${load#\{ }
+  printf '%s %s\n' "${load%% *}" "$(/usr/sbin/sysctl -n hw.ncpu)"
+}
+
+# Prints the memory in use and the total, in bytes. In use counts as Activity
+# Monitor does: app memory, wired and compressed.
+os_memory() {
+  local total
+  total=$(/usr/sbin/sysctl -n hw.memsize) || return 1
+  /usr/bin/vm_stat | LC_ALL=C awk -v total="$total" '
+    /page size of/ { size = $(NF - 1) }
+    /^Anonymous pages:/ { anon = $3 }
+    /^Pages purgeable:/ { purgeable = $3 }
+    /^Pages active:/ { active = $3 }
+    /^Pages wired down:/ { wired = $4 }
+    /^Pages occupied by compressor:/ { compressed = $5 }
+    END {
+      app = (anon != "") ? anon - purgeable : active
+      printf "%.0f %.0f\n", (app + wired + compressed) * size, total
+    }'
 }

@@ -126,3 +126,15 @@ env_sh_path() {
   run env -i HOME="$HOME" PATH=/usr/bin:/bin bash -c ". \"$BIVY_ENV_SH\"; declare -F __bivy_path_front; echo \"[\${__bivy_p:-}]\""
   [ "$output" = '[]' ]
 }
+
+@test "only the files that interactive shells read load the banner" {
+  command -v zsh >/dev/null || skip "zsh is not installed"
+  shell_apply_blocks
+  grep -qF '.config/bivy/env.sh' "$HOME/.zshenv"
+  ! grep -qF 'interactive.sh' "$HOME/.zshenv"
+  ! grep -qF 'interactive.sh' "$HOME/.zprofile"
+  grep -qF '.config/bivy/interactive.sh' "$HOME/.zshrc"
+  ! grep -qF 'env.sh' "$HOME/.zshrc"
+  grep -qF 'env.sh' "$HOME/.bashrc"
+  grep -qF 'interactive.sh' "$HOME/.bashrc"
+}

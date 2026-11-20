@@ -45,4 +45,18 @@ os_gui_activate() {
   [ "$1" -eq 0 ] || info "graphical apps get the shims from the next login"
 }
 
-os_gui_live_check() { :; }
+# 2: the running session cannot be checked, environment.d applies at login.
+os_gui_session_state() { return 2; }
+
+# Prints the one-minute load average and the number of cores.
+os_cpu_load() {
+  local load rest
+  read -r load rest </proc/loadavg || return 1
+  printf '%s %s\n' "$load" "$(getconf _NPROCESSORS_ONLN)"
+}
+
+# Prints the memory in use and the total, in bytes.
+os_memory() {
+  LC_ALL=C awk '/^MemTotal:/ { t = $2 } /^MemAvailable:/ { a = $2 }
+    END { printf "%.0f %.0f\n", (t - a) * 1024, t * 1024 }' /proc/meminfo
+}

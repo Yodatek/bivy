@@ -71,6 +71,24 @@ apply_tools() {
   mise_run reshim >&2 || die "mise could not refresh its shims"
 }
 
+# What bivy banner checks in each new terminal, so that it does not read the
+# profile again. Rewritten on every apply: its date is the date of the last one.
+apply_write_status() {
+  local tmp secret source target
+  tmp=$(mktemp "$BIVY_STATE_DIR/applied.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
+  {
+    echo '# Written by bivy apply for bivy banner.'
+    printf 'profile\t%s\n' "$CFG_PROFILE"
+    while IFS= read -r secret; do
+      [ -z "$secret" ] || printf 'secret\t%s\n' "$secret"
+    done <<<"$PROFILE_SECRETS"
+    while IFS=$'\t' read -r source target; do
+      [ -z "$source" ] || printf 'file\t%s\n' "$target"
+    done <<<"$PROFILE_FILES"
+  } >"$tmp"
+  mv -f "$tmp" "$BIVY_APPLIED" || die "cannot write $BIVY_APPLIED"
+}
+
 cmd_apply() {
   local missing
   [ $# -eq 0 ] || die "apply takes no argument"
@@ -95,6 +113,7 @@ cmd_apply() {
   apply_render_files
   apply_tools
   shell_write_env
+  shell_write_interactive
   shell_apply_blocks
   gui_apply
   git_apply
@@ -103,6 +122,7 @@ cmd_apply() {
   case "${SHELL:-}" in
     */fish) warn "fish is not supported yet; add $BIVY_SHIMS_DIR to its PATH yourself" ;;
   esac
+  apply_write_status
   info "Applied: $BIVY_WRITTEN written, $BIVY_UNCHANGED unchanged, $BIVY_BACKED_UP backed up."
   if [ "$BIVY_BACKED_UP" -gt 0 ]; then
     info "Backups are in $BIVY_BACKUP_DIR"

@@ -68,9 +68,9 @@ doctor_check_env_file() {
 }
 
 doctor_check_blocks() {
-  local files file
+  local files file parts
   files=$(shell_startup_files)
-  while IFS= read -r file; do
+  while IFS=$'\t' read -r file parts; do
     [ -n "$file" ] || continue
     if [ -f "$file" ] && grep -qxF "$BIVY_BLOCK_START" "$file"; then
       doctor_ok "bivy block in $file"
@@ -93,7 +93,7 @@ doctor_check_generated() {
 }
 
 doctor_check_gui() {
-  local tmp file
+  local tmp file state
   file=$(os_gui_file)
   if ! tmp=$(mktemp "${TMPDIR:-/tmp}/bivy-gui.XXXXXX"); then
     doctor_fail "cannot create a temporary file to check $file"
@@ -101,7 +101,11 @@ doctor_check_gui() {
   fi
   if os_gui_render "$tmp"; then
     doctor_check_generated "$file" "$tmp" "graphical apps get the shims at login: $file"
-    os_gui_live_check
+    os_gui_session_state && state=0 || state=$?
+    case "$state" in
+      0) doctor_ok "shims on the PATH of graphical apps" ;;
+      1) doctor_warn "graphical apps started now do not see the shims; run bivy apply, or log out and back in" ;;
+    esac
   else
     doctor_warn "graphical apps: $BIVY_SHIMS_DIR cannot be written safely in $file"
   fi

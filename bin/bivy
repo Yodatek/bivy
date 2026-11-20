@@ -35,6 +35,7 @@ Commands:
   apply                    Install tools, load shims, set the Git identity,
                            write profile files
   doctor                   Check the real state; exits 1 if something is wrong
+  banner                   Show the tools, what does not work and the machine load
   help                     Show this message
 EOF
 }
@@ -43,7 +44,7 @@ command=${1:-help}
 [ $# -eq 0 ] || shift
 
 case "$command" in
-  init | apply | doctor)
+  init | apply | doctor | banner)
     # shellcheck source=/dev/null
     . "$BIVY_ROOT/lib/cmd/$command.sh"
     "cmd_$command" "$@"

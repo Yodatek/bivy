@@ -22,6 +22,7 @@ then offers to configure the machine.
 | `bivy init --config <file>` | The same without questions or editor, from an existing `config.toml`. |
 | `bivy apply` | Installs the tools, puts the shims on the `PATH` of shells and graphical apps, sets the Git identity and writes the profile files. Running it again changes nothing. |
 | `bivy doctor` | Checks the real state and changes nothing. Exits 0 if all is well, 1 otherwise. |
+| `bivy banner` | Shows the tools, what does not work right now, and the CPU, memory and disk load. |
 
 ## Three levels
 
@@ -78,13 +79,31 @@ anything is written.
 A profile can install tools and write files in your home directory, so only use one you
 trust.
 
+## Banner
+
+Each new terminal shows a short banner: who and where, the CPU, memory and disk load,
+the tools mise provides, then `all good` or one line per problem. It only makes checks
+that take no time, such as empty secrets, missing files, a config changed since the
+last `apply` or a tool not installed. `bivy doctor` makes the thorough ones.
+
+It stays quiet in a shell that is not interactive or does not write to a terminal, which
+covers scripts, SSH commands, and IDEs reading the shell environment. It also stays quiet
+in the terminals of VS Code and its forks, Zed, JetBrains IDEs, Emacs and Claude Code.
+
+| To | Do |
+| --- | --- |
+| hide it in one shell | `BIVY_BANNER=0` |
+| show it where it keeps quiet | `BIVY_BANNER=1` |
+| turn it off on the machine | `banner = false` in `config.toml`, then `bivy apply` |
+
 ## What apply changes
 
 - `~/.config/mise/conf.d/bivy.toml` is generated. Your `~/.config/mise/config.toml` is
   not touched.
 - A marked block at the top of `.zshenv`, `.zprofile`, `.bashrc` and your bash login file
-  sources `~/.config/bivy/env.sh`. The rest of each file is kept, and a symlinked dotfile
-  stays a symlink.
+  sources `~/.config/bivy/env.sh`, and the one in `.zshrc`, `.bashrc` and the bash login
+  file sources `~/.config/bivy/interactive.sh`, which shows the banner. The rest of each
+  file is kept, and a symlinked dotfile stays a symlink.
 - Graphical apps get the same `PATH`:
   - on macOS, the LaunchAgent `~/Library/LaunchAgents/bivy.env.plist` runs
     `launchctl setenv PATH` at each login, and `apply` runs it once right away;

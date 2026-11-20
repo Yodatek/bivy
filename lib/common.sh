@@ -32,6 +32,8 @@ bivy_init_paths() {
   BIVY_ENV_SH="$BIVY_CONFIG_DIR/env.sh"
   BIVY_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/bivy"
   BIVY_PROFILE_DIR="$BIVY_STATE_DIR/profile"
+  BIVY_APPLIED="$BIVY_STATE_DIR/applied"
+  BIVY_INTERACTIVE_SH="$BIVY_CONFIG_DIR/interactive.sh"
   BIVY_BACKUP_ROOT="$BIVY_STATE_DIR/backups"
   BIVY_MISE_CONF="${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/mise}/conf.d/bivy.toml"
   BIVY_SHIMS_DIR="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims"

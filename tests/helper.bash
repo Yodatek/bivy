@@ -16,6 +16,8 @@ sandbox_env() {
     esac
   done
   unset ZDOTDIR GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL
+  # The banner keeps quiet in IDEs and agents, the test runner included.
+  unset CLAUDECODE INSIDE_EMACS TERM_PROGRAM TERMINAL_EMULATOR NO_COLOR
   export HOME=$1
   export BIVY_TTY=/nonexistent/tty
   export SHELL=/bin/sh

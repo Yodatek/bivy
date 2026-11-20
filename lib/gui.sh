@@ -4,7 +4,8 @@
 #   os_gui_file             the generated file
 #   os_gui_render <out>     writes its content; fails if a path cannot be written safely
 #   os_gui_activate <0|1>   applies it to the running session; 1 when the file changed
-#   os_gui_live_check       doctor's view of the running session
+#   os_gui_session_state    0 when the running session has the shims, 1 when it
+#                           does not, 2 when it cannot tell
 
 # The PATH that env.sh gives a process starting with the given PATH.
 gui_path_from() {
