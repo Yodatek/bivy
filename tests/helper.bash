@@ -111,10 +111,12 @@ make_custom_profile() {
 }
 
 file_mode() {
-  if stat -f '%Lp' "$1" 2>/dev/null; then
-    return 0
-  fi
-  stat -c '%a' "$1"
+  # Not a fallback from one syntax to the other: GNU stat reads -f as "file
+  # system" and prints before it fails.
+  case "$(uname -s)" in
+    Darwin) stat -f '%Lp' "$1" ;;
+    *) stat -c '%a' "$1" ;;
+  esac
 }
 
 # Hash of everything bivy owns in the home; tool installs are left out.
