@@ -2,6 +2,7 @@
 [tools]
 actionlint = "1.7.12"
 bats = "1.14.0"
+"aqua:charmbracelet/freeze" = "0.2.2"
 gitleaks = "8.30.1"
 shellcheck = "0.11.0"
 
@@ -10,10 +11,14 @@ run = "bats tests"
 
 [tasks.lint]
 run = [
-  "shellcheck -x bootstrap bin/bivy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash .githooks/pre-push",
+  "shellcheck -x bootstrap bin/bivy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash .githooks/pre-push scripts/banner-image",
   "actionlint",
 ]
 
 [tasks.scan]
 description = "Look for secrets in the whole Git history"
 run = "gitleaks git --redact --no-banner"
+
+[tasks.banner-image]
+description = "Render docs/banner.png for the README from this machine's banner"
+run = "scripts/banner-image"

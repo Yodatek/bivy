@@ -167,3 +167,61 @@ banner() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"banner must be true or false"* ]]
 }
+
+# A UTF-8 locale this system has: en_US on macOS, C on most Linux.
+utf8_locale() {
+  locale -a 2>/dev/null | grep -iE '^(C|en_US)\.utf-?8$' | head -n 1
+}
+
+wide_banner() {
+  local loc
+  loc=$(utf8_locale)
+  [ -n "$loc" ] || skip "no UTF-8 locale"
+  run env COLUMNS=100 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner "$@"
+  echo "$output"
+}
+
+@test "a wide UTF-8 terminal gets the framed banner, every framed row the same width" {
+  wide_banner
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" == "  ╭"*"╮" ]]
+  [[ "$output" == *"██████╗ ██╗██╗   ██╗██╗   ██╗"* ]]
+  [[ "$output" == *"╭─ system"* && "$output" == *"├─ tools"* ]]
+  [[ "${lines[${#lines[@]} - 1]}" == "  ╰─ ✓ all good"* ]]
+  [[ "$output" != *"health"* ]]
+  local loc width line
+  loc=$(utf8_locale)
+  width=$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "${lines[0]}")
+  for line in "${lines[@]}"; do
+    case "$line" in
+      "  │"*"│") [ "$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "$line")" -eq "$width" ] ;;
+    esac
+  done
+}
+
+@test "in the framed banner, a problem opens the health section" {
+  rm "$HOME/.config/bivy-example/example.conf"
+  wide_banner
+  [[ "$output" == *"├─ health"* ]]
+  [[ "$output" == *"│  ✗ ~/.config/bivy-example/example.conf is missing; run: bivy apply"* ]]
+  [[ "${lines[${#lines[@]} - 1]}" == "  ╰─ bivy doctor tells more" ]]
+}
+
+@test "a narrow terminal or a locale without UTF-8 gets the compact banner" {
+  local loc
+  loc=$(utf8_locale)
+  [ -n "$loc" ] || skip "no UTF-8 locale"
+  run env COLUMNS=70 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  [[ "$output" != *"╭"* ]]
+  [[ "$output" == *"all good"* ]]
+  run env COLUMNS=100 LANG=C LC_ALL=C PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  [[ "$output" != *"╭"* ]]
+  [[ "$output" == *"all good"* ]]
+}
+
+@test "CLICOLOR_FORCE colours the banner outside a terminal, and NO_COLOR wins" {
+  run env CLICOLOR_FORCE=1 PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  [[ "$output" == *$'\033['* ]]
+  run env CLICOLOR_FORCE=1 NO_COLOR=1 PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  [[ "$output" != *$'\033['* ]]
+}

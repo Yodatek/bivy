@@ -6,6 +6,11 @@ bivy keeps your real `HOME`. Tools come from [mise](https://mise.jdx.dev), and t
 shims are on `PATH` in interactive and non-interactive shells alike, and in graphical
 apps, so IDEs and coding agents see the same tools, SSH keys and config files you do.
 
+<p align="center">
+  <img src="docs/banner.png" width="720"
+    alt="The bivy banner: the BIVY logo in a frame, gauges for CPU, memory and disk, the tools with their versions, and all good">
+</p>
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Yodatek/bivy/main/bootstrap | bash
 ```
@@ -85,9 +90,10 @@ trust.
 
 ## Banner
 
-Each new terminal shows a short banner: who and where, the CPU, memory and disk load,
-the tools mise provides, then `all good` or one line per problem. It only makes checks
-that take no time, such as empty secrets, missing files, a config changed since the
+Each new terminal shows the banner above: who and where, gauges for the CPU, memory and
+disk load, the tools mise provides, then `all good` or one line per problem. A terminal
+narrower than 80 columns, or without UTF-8, gets the same on a few lines. It only makes
+checks that take no time, such as empty secrets, missing files, a config changed since the
 last `apply`, a tool not installed, or a command that another directory of PATH hides. `bivy doctor` makes the thorough ones.
 
 It stays quiet in a shell that is not interactive or does not write to a terminal, which
@@ -159,6 +165,9 @@ mise run test
 ```bash
 mise run lint
 ```
+
+`mise run banner-image` renders `docs/banner.png` again from your own banner, with the
+user, host and profile replaced.
 
 Before each push, a hook scans the history for secrets with gitleaks. Enable it once
 per clone:
