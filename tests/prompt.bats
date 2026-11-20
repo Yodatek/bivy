@@ -73,6 +73,8 @@ apply_shell() {
   printf 'export MINE=1\n' >"$HOME/.bashrc"
   shell_block_apply "$HOME/.zshrc" interactive top
   shell_block_apply "$HOME/.bashrc" "env interactive" top
+  # A new run: same process and second here, so its backup directory is set apart.
+  BIVY_BACKUP_DIR=$BATS_TEST_TMPDIR/second-run
   apply_shell
   [ "$(head -n 1 "$HOME/.zshrc")" = 'export MINE=1' ]
   [ "$(tail -n 1 "$HOME/.zshrc")" = '# <<< bivy <<<' ]
@@ -81,6 +83,10 @@ apply_shell() {
   [ "$(tail -n 1 "$HOME/.bashrc")" = '# <<< bivy interactive <<<' ]
   [ "$(grep -c 'interactive.sh' "$HOME/.bashrc")" -eq 1 ]
   grep -qxF 'export MINE=1' "$HOME/.bashrc"
+  # .bashrc changed twice: its backup is the file as it was before, both parts in one block.
+  local backup=$BIVY_BACKUP_DIR/.bashrc
+  ! grep -q '# >>> bivy interactive >>>' "$backup"
+  grep -q 'interactive.sh' "$backup"
 }
 
 @test "starship joins the tools only when a prompt asks for it, and the machine wins" {

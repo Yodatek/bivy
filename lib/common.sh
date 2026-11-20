@@ -117,6 +117,11 @@ backup_file() {
     *) rel=${path#/} ;;
   esac
   dest="$BIVY_BACKUP_DIR/$rel"
+  # A file changed twice in one run, such as .bashrc and its two blocks, keeps
+  # its first copy: the original.
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    return 0
+  fi
   (umask 077 && mkdir -p "$(dirname "$dest")") || die "cannot create backup directory for $path"
   if [ "$mode" = follow-link ]; then
     cp -pL "$path" "$dest" || die "cannot back up $path"
