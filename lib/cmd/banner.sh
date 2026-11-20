@@ -84,13 +84,15 @@ banner_header() {
   printf ' %s %s\n' "$B_SEP" "$(date '+%a %d %b %H:%M')"
 }
 
-# CPU is the one-minute load average over the number of cores.
+# CPU is the one-minute load average over the number of cores, at most 100%: the load
+# counts the processes waiting for a core too. No awk variable may be named load,
+# which gawk reserves.
 banner_metrics() {
   local load disk mem
   load=$(os_cpu_load 2>/dev/null) || load=""
   mem=$(os_memory 2>/dev/null) || mem=""
   disk=$(df -kP "$HOME" 2>/dev/null | awk 'NR == 2 { print $3 * 1024, $2 * 1024 }') || disk=""
-  LC_ALL=C awk -v load="$load" -v mem="$mem" -v disk="$disk" -v sep="$B_SEP" \
+  LC_ALL=C awk -v cpu="$load" -v mem="$mem" -v disk="$disk" -v sep="$B_SEP" \
     -v warn="$B_WARN" -v fail="$B_FAIL" -v dim="$B_DIM" -v off="$B_OFF" '
     function tint(pct) { return pct >= 90 ? fail : (pct >= 75 ? warn : "") }
     function size(bytes) { return sprintf(bytes >= 10 * 2^30 ? "%.0f" : "%.1f", bytes / 2^30) }
@@ -101,8 +103,9 @@ banner_metrics() {
     }
     BEGIN {
       n = 0
-      if (split(load, l, " ") == 2 && l[2] > 0) {
+      if (split(cpu, l, " ") == 2 && l[2] > 0) {
         pct = int(l[1] * 100 / l[2] + 0.5)
+        if (pct > 100) pct = 100
         part[++n] = sprintf("%scpu %d%%%s", tint(pct), pct, off)
       }
       if ((s = usage("ram", mem)) != "") part[++n] = s
@@ -126,7 +129,8 @@ banner_tools() {
     banner_fail "mise is not installed; run the bivy bootstrap"
     return 0
   fi
-  out=$(mise_run current 2>&1) || out=""
+  # mise colours its output in some CI runners even through a pipe.
+  out=$(NO_COLOR=1 mise_run current 2>&1 | sed $'s/\033\\[[0-9;]*m//g') || out=""
   while IFS= read -r line; do
     case "$line" in
       "mise "*"missing"* | "mise "*"not installed"*)
