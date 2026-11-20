@@ -109,7 +109,8 @@ trust.
 
 ## Development
 
-Tests and lint run with mise; each test gets a temporary `HOME`.
+Tests, lint and the secret scan run with mise; each test gets a temporary `HOME`. CI
+runs them on macOS and Ubuntu.
 
 ```bash
 mise trust
@@ -121,6 +122,13 @@ mise run test
 
 ```bash
 mise run lint
+```
+
+Before each push, a hook scans the history for secrets with gitleaks. Enable it once
+per clone:
+
+```bash
+git config core.hooksPath .githooks
 ```
 
 The code targets bash 3.2, the version macOS ships.

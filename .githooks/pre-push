@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refuses a push when gitleaks finds a secret in the history: once on GitHub, a
+# secret is public. Enable it once per clone with: git config core.hooksPath .githooks
+exec mise run scan

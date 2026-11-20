@@ -41,7 +41,7 @@ sources() {
 @test "shellcheck is clean" {
   command -v shellcheck >/dev/null || skip "shellcheck not installed"
   cd "$BIVY_ROOT"
-  run shellcheck -x bootstrap bin/bivy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash
+  run shellcheck -x bootstrap bin/bivy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash .githooks/pre-push
   echo "$output"
   [ "$status" -eq 0 ]
 }
