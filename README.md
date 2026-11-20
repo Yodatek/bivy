@@ -23,6 +23,7 @@ then offers to configure the machine.
 | `bivy apply` | Installs the tools, puts the shims on the `PATH` of shells and graphical apps, sets the Git identity and writes the profile files. Running it again changes nothing. |
 | `bivy doctor` | Checks the real state and changes nothing. Exits 0 if all is well, 1 otherwise. |
 | `bivy banner` | Shows the tools, what does not work right now, and the CPU, memory and disk load. |
+| `bivy tools` | Lists each tool with the level that declares it (bivy, profile or machine) and the version mise runs, including tools that your own mise config sets or overrides. |
 
 ## Three levels
 
@@ -38,6 +39,8 @@ profile = "git@example.org:me/my-profile.git"
 
 [tools]            # optional, overrides the profile
 node = "22"
+
+prompt = "starship" # optional: starship, or none to keep yours; overrides the profile
 
 [[identities]]     # optional, another Git identity under a directory
 dir = "~/oss/"
@@ -60,6 +63,7 @@ in an identity directory, so `apply` and `doctor` name the file that holds one.
 A profile has a `profile.toml` at its root. See [examples/profile](examples/profile).
 
 ```toml
+prompt = "starship"                 # optional, see Prompt
 [secrets]
 required = ["EXAMPLE_API_TOKEN"]   # read from ~/.config/bivy/.env
 
@@ -96,16 +100,26 @@ in the terminals of VS Code and its forks, Zed, JetBrains IDEs, Emacs and Claude
 | show it where it keeps quiet | `BIVY_BANNER=1` |
 | turn it off on the machine | `banner = false` in `config.toml`, then `bivy apply` |
 
+## Prompt
+
+With `prompt = "starship"`, in the profile or in `config.toml`, bivy installs
+[Starship](https://starship.rs) with mise and starts it in interactive zsh and bash,
+after anything else in `.zshrc` and `.bashrc` has set a prompt, such as an Oh My Zsh
+theme. Its look comes from `~/.config/starship.toml`, which a profile can write. Without
+the key, or with `prompt = "none"`, bivy leaves the prompt alone.
+
 ## What apply changes
 
 - `~/.config/mise/conf.d/bivy.toml` is generated. Your `~/.config/mise/config.toml` is
   not touched.
-- A marked block in `.zshenv`, `.zprofile`, `.bashrc` and your bash login file sources
-  `~/.config/bivy/env.sh`, and the one in `.zshrc`, `.bashrc` and the bash login file
-  sources `~/.config/bivy/interactive.sh`, which shows the banner. The block sits at the
-  top of `.zshenv`, `.zshrc` and `.bashrc`, and at the bottom of the login files, after
-  what they add to PATH, such as `brew shellenv`. The rest of each file is kept, and a
-  symlinked dotfile stays a symlink.
+- Marked blocks in the startup files source `~/.config/bivy/env.sh`, which puts the
+  shims on PATH, and `~/.config/bivy/interactive.sh`, which shows the banner and starts
+  the prompt:
+  - `env` sits at the top of `.zshenv` and `.bashrc`, and at the bottom of `.zprofile`
+    and your bash login file, after what they add to PATH, such as `brew shellenv`;
+  - `interactive` sits at the bottom of `.zshrc`, `.bashrc` and your bash login file.
+
+  The rest of each file is kept, and a symlinked dotfile stays a symlink.
 - Graphical apps get the same `PATH`:
   - on macOS, the LaunchAgent `~/Library/LaunchAgents/bivy.env.plist` runs
     `launchctl setenv PATH` at each login, and `apply` runs it once right away;

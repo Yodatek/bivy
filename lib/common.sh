@@ -11,7 +11,7 @@ BIVY_BACKED_UP=0
 ANSWER=""
 
 # Marks the lines bivy owns in a file it shares with the user. Both the shell and
-# Git read them as comments.
+# Git read them as comments. See block_start for named blocks.
 BIVY_BLOCK_START='# >>> bivy >>>'
 BIVY_BLOCK_END='# <<< bivy <<<'
 
@@ -154,12 +154,19 @@ install_file() {
   info "wrote $target"
 }
 
+# The marker lines of a block. A file may hold several blocks, told apart by a name.
+block_start() { printf '# >>> bivy%s >>>' "${1:+ $1}"; }
+block_end() { printf '# <<< bivy%s <<<' "${1:+ $1}"; }
+
+# Usage: block_apply FILE BLOCK [top|bottom] [NAME]
 # Puts a marked block at the top or at the bottom of a file. At the top, a block
 # already there is refreshed in place. At the bottom, it moves to the end, after
-# whatever the file adds to PATH. Content outside the block is not touched, and a
-# symlinked dotfile stays a symlink.
+# whatever the file sets before it. Content outside the block is not touched, and
+# a symlinked dotfile stays a symlink.
 block_apply() {
-  local file=$1 block=$2 position=${3:-top} starts ends current tmp
+  local file=$1 block=$2 position=${3:-top} start end starts ends current tmp
+  start=$(block_start "${4:-}")
+  end=$(block_end "${4:-}")
   tmp=$(mktemp "$BIVY_STATE_DIR/block.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
 
   if [ ! -e "$file" ]; then
@@ -170,8 +177,8 @@ block_apply() {
     return 0
   fi
 
-  starts=$(grep -cxF "$BIVY_BLOCK_START" "$file") || starts=0
-  ends=$(grep -cxF "$BIVY_BLOCK_END" "$file") || ends=0
+  starts=$(grep -cxF "$start" "$file") || starts=0
+  ends=$(grep -cxF "$end" "$file") || ends=0
 
   if [ "$starts" -ne "$ends" ] || [ "$starts" -gt 1 ]; then
     rm -f "$tmp"
@@ -180,7 +187,7 @@ block_apply() {
 
   if [ "$position" = bottom ]; then
     {
-      awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
+      awk -v s="$start" -v e="$end" '
         $0 == s { on = 1 }
         !on { print }
         $0 == e { on = 0 }
@@ -195,7 +202,7 @@ block_apply() {
   elif [ "$starts" -eq 0 ]; then
     { printf '%s\n' "$block" && cat "$file"; } >"$tmp"
   else
-    current=$(awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
+    current=$(awk -v s="$start" -v e="$end" '
       $0 == s { on = 1 }
       on { print }
       $0 == e { on = 0 }
@@ -205,7 +212,7 @@ block_apply() {
       BIVY_UNCHANGED=$((BIVY_UNCHANGED + 1))
       return 0
     fi
-    BIVY_BLOCK_TEXT="$block" awk -v s="$BIVY_BLOCK_START" -v e="$BIVY_BLOCK_END" '
+    BIVY_BLOCK_TEXT="$block" awk -v s="$start" -v e="$end" '
       $0 == s { on = 1; print ENVIRON["BIVY_BLOCK_TEXT"]; next }
       $0 == e { on = 0; next }
       !on { print }
@@ -217,6 +224,24 @@ block_apply() {
   rm -f "$tmp"
   BIVY_WRITTEN=$((BIVY_WRITTEN + 1))
   info "updated $file"
+}
+
+# A path as a person reads it, with ~ for the home directory.
+tilde_path() {
+  # shellcheck disable=SC2088 # A path shown to a person, not expanded.
+  case "$1" in
+    "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# temurin-21.0.13+100000002.0.LTS -> 21.0.13, liberica-javafx-8u492+9 -> 8u492.
+short_version() {
+  local version=$1
+  if [[ "$version" =~ ^[A-Za-z][A-Za-z-]*-([0-9].*)$ ]]; then
+    version=${BASH_REMATCH[1]}
+  fi
+  printf '%s' "${version%%+*}"
 }
 
 # mise. MISE_YES avoids prompts when stdin is not a terminal, and running from

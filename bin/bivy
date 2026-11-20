@@ -36,6 +36,7 @@ Commands:
                            write profile files
   doctor                   Check the real state; exits 1 if something is wrong
   banner                   Show the tools, what does not work and the machine load
+  tools                    List each tool, where it is declared and what mise runs
   help                     Show this message
 EOF
 }
@@ -44,7 +45,7 @@ command=${1:-help}
 [ $# -eq 0 ] || shift
 
 case "$command" in
-  init | apply | doctor | banner)
+  init | apply | doctor | banner | tools)
     # shellcheck source=/dev/null
     . "$BIVY_ROOT/lib/cmd/$command.sh"
     "cmd_$command" "$@"

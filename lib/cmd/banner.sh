@@ -39,14 +39,6 @@ banner_style() {
   esac
 }
 
-banner_tilde() {
-  # shellcheck disable=SC2088 # A path shown to a person, not expanded.
-  case "$1" in
-    "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;;
-    *) printf '%s' "$1" ;;
-  esac
-}
-
 banner_fail() {
   printf '   %s%s %s%s\n' "$B_FAIL" "$B_MARK_FAIL" "$*" "$B_OFF"
   BANNER_PROBLEMS=$((BANNER_PROBLEMS + 1))
@@ -61,15 +53,6 @@ banner_warn() {
 banner_applied() {
   [ -f "$BIVY_APPLIED" ] || return 0
   awk -F'\t' -v kind="$1" '$1 == kind { print $2 }' "$BIVY_APPLIED"
-}
-
-# temurin-21.0.13+100000002.0.LTS -> 21.0.13, liberica-javafx-8u492+9 -> 8u492.
-banner_short_version() {
-  local version=$1
-  if [[ "$version" =~ ^[A-Za-z][A-Za-z-]*-([0-9].*)$ ]]; then
-    version=${BASH_REMATCH[1]}
-  fi
-  printf '%s' "${version%%+*}"
 }
 
 banner_header() {
@@ -116,7 +99,7 @@ banner_metrics() {
       print line
     }'
   if [ -n "$disk" ] && awk -v d="$disk" 'BEGIN { split(d, v, " "); exit !(v[2] > 0 && v[1] * 100 / v[2] >= 90) }'; then
-    banner_warn "the disk holding $(banner_tilde "$HOME") is almost full"
+    banner_warn "the disk holding $(tilde_path "$HOME") is almost full"
   fi
 }
 
@@ -149,7 +132,7 @@ banner_tools() {
     [ "$name" != yq ] || continue
     first="" others=""
     for version in $versions; do
-      version=$(banner_short_version "$version")
+      version=$(short_version "$version")
       if [ -z "$first" ]; then
         first=$version
       else
@@ -185,20 +168,20 @@ banner_checks() {
 
   secrets=$(banner_applied secret)
   missing=$(env_missing "$secrets")
-  [ -z "$missing" ] || banner_fail "empty secrets in $(banner_tilde "$BIVY_ENV_FILE"): $(printf '%s' "$missing" | tr '\n' ' ')"
+  [ -z "$missing" ] || banner_fail "empty secrets in $(tilde_path "$BIVY_ENV_FILE"): $(printf '%s' "$missing" | tr '\n' ' ')"
   if [ -f "$BIVY_ENV_FILE" ]; then
     mode=$(os_file_mode "$BIVY_ENV_FILE") || mode=""
-    [ "$mode" = 600 ] || banner_fail "$(banner_tilde "$BIVY_ENV_FILE") has mode $mode, expected 600"
+    [ "$mode" = 600 ] || banner_fail "$(tilde_path "$BIVY_ENV_FILE") has mode $mode, expected 600"
   fi
   while IFS= read -r target; do
     [ -n "$target" ] || continue
     path="$HOME/$target"
     if [ ! -f "$path" ]; then
-      banner_fail "$(banner_tilde "$path") is missing; run: bivy apply"
+      banner_fail "$(tilde_path "$path") is missing; run: bivy apply"
       continue
     fi
     mode=$(os_file_mode "$path") || mode=""
-    [ "$mode" = 600 ] || banner_fail "$(banner_tilde "$path") has mode $mode, expected 600"
+    [ "$mode" = 600 ] || banner_fail "$(tilde_path "$path") has mode $mode, expected 600"
   done <<<"$(banner_applied file)"
 
   os_gui_session_state && state=0 || state=$?

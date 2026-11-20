@@ -50,6 +50,15 @@ doctor_check_shadowed() {
     doctor_warn "in '$shell_cmd $flags', $(shims_shadowed_summary "$shadowed") before the mise shims"
 }
 
+doctor_check_prompt() {
+  [ "$(prompt_choice)" = starship ] || return 0
+  if [ -n "$(prompt_starship_path)" ]; then
+    doctor_ok "prompt: starship"
+  else
+    doctor_fail "starship is not installed; run: bivy apply"
+  fi
+}
+
 doctor_check_mise() {
   local version
   if ! mise_find >/dev/null; then
@@ -79,14 +88,15 @@ doctor_check_env_file() {
 }
 
 doctor_check_blocks() {
-  local files file parts position
+  local files file parts position name label
   files=$(shell_startup_files)
-  while IFS=$'\t' read -r file parts position; do
+  while IFS=$'\t' read -r file parts position name; do
     [ -n "$file" ] || continue
-    if [ -f "$file" ] && grep -qxF "$BIVY_BLOCK_START" "$file"; then
-      doctor_ok "bivy block in $file"
+    label="bivy${name:+ $name} block"
+    if [ -f "$file" ] && grep -qxF "$(block_start "$name")" "$file"; then
+      doctor_ok "$label in $file"
     else
-      doctor_fail "no bivy block in $file"
+      doctor_fail "no $label in $file"
     fi
   done <<<"$files"
 }
@@ -227,6 +237,7 @@ cmd_doctor() {
     config_load
     doctor_check_profile
     doctor_check_git
+    doctor_check_prompt
   fi
 
   doctor_check_env_file

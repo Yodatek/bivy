@@ -5,6 +5,7 @@
 PROFILE_SECRETS=""
 PROFILE_TOOLS=""
 PROFILE_FILES=""
+PROFILE_PROMPT=""
 
 BIVY_SECRET_RE='^[A-Za-z_][A-Za-z0-9_]*$'
 
@@ -63,6 +64,7 @@ profile_load() {
   PROFILE_SECRETS=""
   PROFILE_TOOLS=""
   PROFILE_FILES=""
+  PROFILE_PROMPT=""
   [ -n "$url" ] || return 0
   file="$BIVY_PROFILE_DIR/profile.toml"
   [ -f "$file" ] || die "the profile has no profile.toml: $url"
@@ -75,6 +77,7 @@ profile_load() {
   done <<<"$raw"
 
   PROFILE_TOOLS=$(toml_tools "$file") || exit 1
+  PROFILE_PROMPT=$(toml_prompt "$file") || exit 1
 
   count=$(toml_query "$file" '(.files // []) | length') || die "$file is not valid TOML"
   raw=$(toml_tsv "$file" '(.files // [])[] | [(.source // ""), (.target // "")]') ||

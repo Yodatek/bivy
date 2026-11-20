@@ -8,6 +8,8 @@ CFG_PROFILE=""
 CFG_TOOLS=""
 CFG_IDENTITIES=""
 CFG_BANNER=true
+CFG_PROMPT=""
+BIVY_STARSHIP_TOOL="starship@1.27.0"
 
 BIVY_TOOL_NAME_RE='^[A-Za-z0-9@][A-Za-z0-9@._:/+-]*$'
 BIVY_TOOL_VERSION_RE='^[A-Za-z0-9][A-Za-z0-9._:+-]*$'
@@ -38,6 +40,22 @@ profile_url_problem() {
     echo "profile URL must not embed a password; use a Git credential helper or SSH"
   fi
   return 0
+}
+
+# Prints "name<TAB>versions<TAB>level" for every tool, the last declaration of a
+# name winning: bivy itself, then the profile, then the machine. yq is declared
+# because mise creates a shim for every installed tool, and a shim with no
+# configured version fails when called.
+tools_merged() {
+  {
+    printf '%s\t%s\tbivy\n' "${BIVY_YQ_TOOL%@*}" "${BIVY_YQ_TOOL#*@}"
+    if [ "$(prompt_choice)" = starship ]; then
+      printf '%s\t%s\tbivy\n' "${BIVY_STARSHIP_TOOL%@*}" "${BIVY_STARSHIP_TOOL#*@}"
+    fi
+    printf '%s\n' "$PROFILE_TOOLS" | awk -F'\t' 'NF == 2 { print $0 "\tprofile" }'
+    printf '%s\n' "$CFG_TOOLS" | awk -F'\t' 'NF == 2 { print $0 "\tmachine" }'
+  } | awk -F'\t' 'NF == 3 { if (!($1 in v)) o[++n] = $1; v[$1] = $2; l[$1] = $3 }
+      END { for (i = 1; i <= n; i++) print o[i] "\t" v[o[i]] "\t" l[o[i]] }'
 }
 
 # Prints "name<TAB>versions" lines for a [tools] table. A tool takes one version or
@@ -123,6 +141,22 @@ toml_bool() {
   esac
 }
 
+# Prints the prompt key of a file: starship, none, or nothing when it is absent.
+toml_prompt() {
+  local file=$1 value
+  value=$(toml_string "$file" prompt) || exit 1
+  case "$value" in
+    '' | starship | none) printf '%s' "$value" ;;
+    *) die "$file: prompt must be starship or none" ;;
+  esac
+}
+
+# The prompt to set: the machine's choice, else the profile's, else none.
+prompt_choice() {
+  local choice=${CFG_PROMPT:-${PROFILE_PROMPT:-}}
+  printf '%s' "${choice:-none}"
+}
+
 config_read() {
   local file=$1 problem
   CFG_NAME=$(toml_string "$file" name) || exit 1
@@ -135,6 +169,7 @@ config_read() {
   [ -z "$problem" ] || die "$file: $problem"
   CFG_IDENTITIES=$(toml_identities "$file") || exit 1
   CFG_BANNER=$(toml_bool "$file" banner true) || exit 1
+  CFG_PROMPT=$(toml_prompt "$file") || exit 1
 }
 
 config_load() {

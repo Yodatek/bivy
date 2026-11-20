@@ -45,11 +45,10 @@ banner() {
 
 @test "versions are shortened, the first of a list comes first" {
   load_libs
-  . "$BIVY_ROOT/lib/cmd/banner.sh"
-  [ "$(banner_short_version temurin-21.0.13+100000002.0.LTS)" = 21.0.13 ]
-  [ "$(banner_short_version liberica-javafx-8u492+9)" = 8u492 ]
-  [ "$(banner_short_version 22.23.5)" = 22.23.5 ]
-  [ "$(banner_short_version 1.2.3-rc1)" = 1.2.3-rc1 ]
+  [ "$(short_version temurin-21.0.13+100000002.0.LTS)" = 21.0.13 ]
+  [ "$(short_version liberica-javafx-8u492+9)" = 8u492 ]
+  [ "$(short_version 22.23.5)" = 22.23.5 ]
+  [ "$(short_version 1.2.3-rc1)" = 1.2.3-rc1 ]
 }
 
 @test "each problem gets a line, and doctor is suggested" {
