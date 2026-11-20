@@ -192,6 +192,33 @@ jq = "1.7"'
   [ "$(grep -c '"jq"' "$HOME/.config/mise/conf.d/bivy.toml")" -eq 1 ]
 }
 
+@test "a tool can list several versions, all installed, the first one by default" {
+  make_custom_profile "$PROFILE" '[tools]
+jq = ["1.7.1", "1.6"]'
+  write_config "$CONFIG" "$PROFILE"
+  bivy init --config "$CONFIG"
+  bivy apply
+  grep -qxF '"jq" = ["1.7.1", "1.6"]' "$HOME/.config/mise/conf.d/bivy.toml"
+  cd "$HOME"
+  [ "$(env -i HOME="$HOME" MISE_DATA_DIR="$MISE_DATA_DIR" PATH=/usr/bin:/bin bash -lc 'jq --version')" = jq-1.7.1 ]
+  [ -x "$(mise where jq@1.6)/bin/jq" ] || [ -x "$(mise where jq@1.6)/jq" ]
+}
+
+@test "invalid version lists are refused" {
+  local tools
+  touch "$BATS_TEST_TMPDIR/1.7"
+  cd "$BATS_TEST_TMPDIR"
+  for tools in 'jq = []' 'jq = ["1.7.1", "bad version"]' 'jq = [["1.7.1"]]' 'jq = [{ v = "1" }]' 'jq = ["1.*"]'; do
+    write_config "$CONFIG"
+    printf '[tools]\n%s\n' "$tools" >>"$CONFIG"
+    run bivy init --config "$CONFIG"
+    [ "$status" -ne 0 ] || {
+      echo "accepted: $tools"
+      return 1
+    }
+  done
+}
+
 @test "several tools keep each its own version" {
   make_custom_profile "$PROFILE" '[tools]
 jq = "1.7.1"

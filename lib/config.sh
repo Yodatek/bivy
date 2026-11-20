@@ -39,16 +39,33 @@ profile_url_problem() {
   return 0
 }
 
-# Prints "name<TAB>version" lines for a [tools] table.
+# Prints "name<TAB>versions" lines for a [tools] table. A tool takes one version or
+# a list of them, separated by spaces in the output. As in mise, every version of a
+# list is installed and the first one is the default.
 toml_tools() {
-  local file=$1 raw name version
-  raw=$(toml_tsv "$file" '(.tools // {}) | to_entries | .[] | [.key, (.value | tostring)]') ||
+  local file=$1 raw name tag length versions version count
+  local -a list
+  raw=$(toml_tsv "$file" '(.tools // {}) | to_entries | .[] |
+    [.key, (.value | tag), ((.value | select(tag == "!!seq") | length) // 1),
+      ((.value | select(tag == "!!seq") | map(tostring) | join(" ")) // (.value | tostring))]') ||
     die "$file is not valid TOML"
-  while IFS=$'\t' read -r name version; do
+  # The version comes last because it may be empty, and read merges empty fields.
+  while IFS=$'\t' read -r name tag length versions; do
     [ -n "$name" ] || continue
     [[ "$name" =~ $BIVY_TOOL_NAME_RE ]] || die "$file: invalid tool name: $name"
-    [[ "$version" =~ $BIVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
-    printf '%s\t%s\n' "$name" "$version"
+    if [ "$tag" != '!!seq' ]; then
+      [[ "$versions" =~ $BIVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
+    else
+      # read -a splits without expanding wildcards, which are checked below.
+      IFS=' ' read -r -a list <<<"$versions"
+      for version in ${list[@]+"${list[@]}"}; do
+        [[ "$version" =~ $BIVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
+      done
+      # An element holding a space would split into several valid-looking words.
+      count=${#list[@]}
+      [ "$count" -gt 0 ] && [ "$count" -eq "$length" ] || die "$file: invalid version list for $name"
+    fi
+    printf '%s\t%s\n' "$name" "$versions"
   done <<<"$raw"
 }
 

@@ -64,6 +64,7 @@ required = ["EXAMPLE_API_TOKEN"]   # read from ~/.config/bivy/.env
 
 [tools]
 jq = "1.7.1"
+java = ["21", "25"]                 # all installed, the first one is the default
 
 [[files]]
 source = "files/example.conf.tmpl"          # relative to the profile
