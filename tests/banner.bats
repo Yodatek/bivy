@@ -199,6 +199,22 @@ wide_banner() {
   done
 }
 
+@test "a long host name stays inside the frame" {
+  local loc width line host
+  loc=$(utf8_locale)
+  [ -n "$loc" ] || skip "no UTF-8 locale"
+  host=$(printf 'h%.0s' $(seq 1 90))
+  run env HOSTNAME="$host" COLUMNS=100 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  echo "$output"
+  [[ "$output" == *"hhh…"* ]]
+  width=$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "${lines[0]}")
+  for line in "${lines[@]}"; do
+    case "$line" in
+      "  │"*"│") [ "$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "$line")" -eq "$width" ] ;;
+    esac
+  done
+}
+
 @test "in the framed banner, a problem opens the health section" {
   rm "$HOME/.config/bivy-example/example.conf"
   wide_banner

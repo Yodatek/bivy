@@ -273,6 +273,12 @@ banner_frame() {
     i=$((i + 1))
   done <<<"$BANNER_LOGO"
   banner_row "" 0
+  # Long names must not push the frame: the profile goes first, then the host is cut.
+  local room=$((BANNER_WIDTH - 4))
+  [ $((${#user} + 1 + ${#host} + 3 + ${#profile})) -le "$room" ] || profile=""
+  if [ $((${#user} + 1 + ${#host})) -gt "$room" ]; then
+    host="${host:0:$((room - ${#user} - 2))}…"
+  fi
   text="$B_BOLD$B_FG$user$B_OFF$B_HOST@$host$B_OFF"
   width=$((${#user} + 1 + ${#host}))
   if [ -n "$profile" ]; then
