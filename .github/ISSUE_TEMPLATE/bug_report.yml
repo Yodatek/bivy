@@ -1,0 +1,36 @@
+name: Bug report
+description: Something bivy does wrong.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command you ran, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: bivy doctor
+      description: The output of `bivy doctor`. Remove anything private, such as host names, paths or URLs.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `bivy --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options: [macOS, Linux, WSL2]
+    validations:
+      required: true
+  - type: input
+    id: shell
+    attributes:
+      label: Shell
+      placeholder: zsh 5.9

@@ -19,6 +19,10 @@ The bootstrap installs Git and mise if they are missing, clones the engine into
 `~/.local/share/bivy` and links the command at `~/.local/bin/bivy`. On a terminal it
 then offers to configure the machine.
 
+To update bivy, run the same command again, then `bivy apply`. The
+[changelog](CHANGELOG.md) lists what each release changes, and `bivy --version` tells
+which one you run.
+
 ## Commands
 
 | Command | What it does |
@@ -29,6 +33,7 @@ then offers to configure the machine.
 | `bivy doctor` | Checks the real state and changes nothing. Exits 0 if all is well, 1 otherwise. |
 | `bivy banner` | Shows the tools, what does not work right now, and the CPU, memory and disk load. |
 | `bivy tools` | Lists each tool with the level that declares it (bivy, profile or machine) and the version mise runs, including tools that your own mise config sets or overrides. |
+| `bivy version` | Shows the release bivy is on, such as `0.1.0`, or `0.1.0-3-gabc1234` three commits after it. |
 
 ## Three levels
 
@@ -171,34 +176,11 @@ the key, or with `prompt = "none"`, bivy leaves the prompt alone.
 - On Linux, graphical apps get the shims only in a session started by systemd.
 - fish is not supported yet.
 
-## Development
+## Contributing
 
-Tests, lint and the secret scan run with mise; each test gets a temporary `HOME`. CI
-runs them on macOS and Ubuntu.
-
-```bash
-mise trust
-```
-
-```bash
-mise run test
-```
-
-```bash
-mise run lint
-```
-
-`mise run banner-image` renders `docs/banner.png` again from your own banner, with the
-user, host and profile replaced.
-
-Before each push, a hook scans the history for secrets with gitleaks. Enable it once
-per clone:
-
-```bash
-git config core.hooksPath .githooks
-```
-
-The code targets bash 3.2, the version macOS ships.
+[CONTRIBUTING.md](CONTRIBUTING.md) explains the setup, the tests and how releases are
+made, and [SECURITY.md](SECURITY.md) how to report a vulnerability. Everyone who takes
+part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
