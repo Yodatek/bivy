@@ -2,8 +2,8 @@
 # A profile is an external Git repository holding a profile.toml, which declares
 # required secrets, extra mise tools and templates written in the home directory.
 # The profile may sit in a subdirectory of the repository, given by profile_path:
-# Git works on the clone, BIVY_PROFILE_DIR, and everything else reads from
-# BIVY_PROFILE_ROOT, the directory that holds profile.toml.
+# Git works on the clone, POVY_PROFILE_DIR, and everything else reads from
+# POVY_PROFILE_ROOT, the directory that holds profile.toml.
 
 PROFILE_SECRETS=""
 PROFILE_TOOLS=""
@@ -13,7 +13,7 @@ PROFILE_BIN=""
 PROFILE_SHELL=""
 PROFILE_PACKAGES=""
 
-BIVY_SECRET_RE='^[A-Za-z_][A-Za-z0-9_]*$'
+POVY_SECRET_RE='^[A-Za-z_][A-Za-z0-9_]*$'
 
 # Clones the profile on its default branch, or on the branch given. The clone keeps
 # the branch it was asked for, so that a new branch, or none, gives a new clone.
@@ -21,14 +21,14 @@ profile_clone() {
   local url=$1 branch=${2:-} tmp
   local -a args=()
   [ -z "$branch" ] || args=(--branch "$branch")
-  tmp=$(mktemp -d "$BIVY_STATE_DIR/profile-clone.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
+  tmp=$(mktemp -d "$POVY_STATE_DIR/profile-clone.XXXXXX") || die "cannot write in $POVY_STATE_DIR"
   if ! git clone --quiet ${args[@]+"${args[@]}"} -- "$url" "$tmp/profile" </dev/null ||
-    ! git -C "$tmp/profile" config bivy.branch "$branch"; then
+    ! git -C "$tmp/profile" config povy.branch "$branch"; then
     rm -rf "$tmp"
     die "could not clone the profile: $url${branch:+, branch $branch}"
   fi
-  rm -rf "$BIVY_PROFILE_DIR"
-  mv "$tmp/profile" "$BIVY_PROFILE_DIR"
+  rm -rf "$POVY_PROFILE_DIR"
+  mv "$tmp/profile" "$POVY_PROFILE_DIR"
   rm -rf "$tmp"
   info "cloned profile $url${branch:+, branch $branch}"
 }
@@ -37,11 +37,11 @@ profile_clone() {
 profile_sync() {
   local url=$1 branch=${2:-} current current_branch
   [ -n "$url" ] || return 0
-  current=$(git -C "$BIVY_PROFILE_DIR" remote get-url origin 2>/dev/null) || current=""
-  current_branch=$(git -C "$BIVY_PROFILE_DIR" config --get bivy.branch 2>/dev/null) || current_branch=""
+  current=$(git -C "$POVY_PROFILE_DIR" remote get-url origin 2>/dev/null) || current=""
+  current_branch=$(git -C "$POVY_PROFILE_DIR" config --get povy.branch 2>/dev/null) || current_branch=""
   if [ "$current" != "$url" ] || [ "$current_branch" != "$branch" ]; then
     profile_clone "$url" "$branch"
-  elif ! git -C "$BIVY_PROFILE_DIR" pull --quiet --ff-only </dev/null; then
+  elif ! git -C "$POVY_PROFILE_DIR" pull --quiet --ff-only </dev/null; then
     warn "could not update the profile, using the local copy"
   fi
 }
@@ -71,17 +71,17 @@ path_within() {
 # Rejects a template that resolves outside the profile through a symlink.
 profile_check_source() {
   local rel=$1 path
-  path="$BIVY_PROFILE_ROOT/$rel"
+  path="$POVY_PROFILE_ROOT/$rel"
   [ -f "$path" ] && [ ! -L "$path" ] || die "profile template not found: $rel"
-  path_within "$(dirname "$path")" "$BIVY_PROFILE_ROOT" || die "profile template is outside the profile: $rel"
+  path_within "$(dirname "$path")" "$POVY_PROFILE_ROOT" || die "profile template is outside the profile: $rel"
 }
 
 # Rejects a directory that is missing or resolves outside the profile.
 profile_check_dir() {
   local rel=$1 path
-  path="$BIVY_PROFILE_ROOT/$rel"
+  path="$POVY_PROFILE_ROOT/$rel"
   [ -d "$path" ] || die "profile directory not found: $rel"
-  path_within "$path" "$BIVY_PROFILE_ROOT" || die "profile directory is outside the profile: $rel"
+  path_within "$path" "$POVY_PROFILE_ROOT" || die "profile directory is outside the profile: $rel"
 }
 
 # Fills PROFILE_SECRETS (one per line), PROFILE_TOOLS (name<TAB>version) and
@@ -96,20 +96,20 @@ profile_load() {
   PROFILE_BIN=""
   PROFILE_SHELL=""
   PROFILE_PACKAGES=""
-  BIVY_PROFILE_ROOT=$BIVY_PROFILE_DIR
+  POVY_PROFILE_ROOT=$POVY_PROFILE_DIR
   [ -n "$url" ] || return 0
   if [ -n "$subdir" ]; then
-    BIVY_PROFILE_ROOT="$BIVY_PROFILE_DIR/$subdir"
-    [ -d "$BIVY_PROFILE_ROOT" ] || die "the profile repository has no directory $subdir: $url"
-    path_within "$BIVY_PROFILE_ROOT" "$BIVY_PROFILE_DIR" || die "profile_path is outside the profile: $subdir"
+    POVY_PROFILE_ROOT="$POVY_PROFILE_DIR/$subdir"
+    [ -d "$POVY_PROFILE_ROOT" ] || die "the profile repository has no directory $subdir: $url"
+    path_within "$POVY_PROFILE_ROOT" "$POVY_PROFILE_DIR" || die "profile_path is outside the profile: $subdir"
   fi
-  file="$BIVY_PROFILE_ROOT/profile.toml"
+  file="$POVY_PROFILE_ROOT/profile.toml"
   [ -f "$file" ] || die "the profile has no profile.toml: $url${subdir:+, path $subdir}"
 
   raw=$(toml_query "$file" '(.secrets.required // [])[]') || die "$file is not valid TOML"
   while IFS= read -r secret; do
     [ -n "$secret" ] || continue
-    [[ "$secret" =~ $BIVY_SECRET_RE ]] || die "$file: invalid secret name: $secret"
+    [[ "$secret" =~ $POVY_SECRET_RE ]] || die "$file: invalid secret name: $secret"
     PROFILE_SECRETS="$PROFILE_SECRETS$secret"$'\n'
   done <<<"$raw"
 
@@ -159,10 +159,10 @@ profile_load() {
 template_render() {
   local src=$1 dst=$2 secret
   (
-    export BIVY_TPL_name="$CFG_NAME" BIVY_TPL_email="$CFG_EMAIL" BIVY_TPL_home="$HOME"
+    export POVY_TPL_name="$CFG_NAME" POVY_TPL_email="$CFG_EMAIL" POVY_TPL_home="$HOME"
     while IFS= read -r secret; do
       [ -n "$secret" ] || continue
-      export "BIVY_TPL_$secret=$(env_value "$secret")"
+      export "POVY_TPL_$secret=$(env_value "$secret")"
     done <<<"$PROFILE_SECRETS"
     # shellcheck disable=SC2016
     awk '
@@ -171,11 +171,11 @@ template_render() {
         out = ""
         while (match(rest, /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/)) {
           key = substr(rest, RSTART + 2, RLENGTH - 4)
-          if (!(("BIVY_TPL_" key) in ENVIRON)) {
+          if (!(("POVY_TPL_" key) in ENVIRON)) {
             print "unknown placeholder {{" key "}} in " FILENAME > "/dev/stderr"
             exit 3
           }
-          out = out substr(rest, 1, RSTART - 1) ENVIRON["BIVY_TPL_" key]
+          out = out substr(rest, 1, RSTART - 1) ENVIRON["POVY_TPL_" key]
           rest = substr(rest, RSTART + RLENGTH)
         }
         print out rest

@@ -8,19 +8,19 @@ setup() {
   sandbox_setup
   load_libs
   shell_write_env
-  STUB_DIR=${BIVY_LAUNCHCTL%/*}
-  SHIMS=$BIVY_SHIMS_DIR
+  STUB_DIR=${POVY_LAUNCHCTL%/*}
+  SHIMS=$POVY_SHIMS_DIR
   LOCAL_BIN=$HOME/.local/bin
 }
 
 use_darwin() {
-  . "$BIVY_ROOT/lib/os/darwin.sh"
-  PLIST=$HOME/Library/LaunchAgents/bivy.env.plist
+  . "$POVY_ROOT/lib/os/darwin.sh"
+  PLIST=$HOME/Library/LaunchAgents/povy.env.plist
 }
 
 use_linux() {
-  . "$BIVY_ROOT/lib/os/linux.sh"
-  ENV_D=$HOME/.config/environment.d/50-bivy.conf
+  . "$POVY_ROOT/lib/os/linux.sh"
+  ENV_D=$HOME/.config/environment.d/50-povy.conf
 }
 
 setenv_calls() {
@@ -47,15 +47,15 @@ need_plutil() {
   gui_apply
   [ "$(cat "$STUB_DIR/PATH")" = "$SHIMS:$LOCAL_BIN:/opt/extra/bin:/usr/bin:/bin" ]
   [ "$(setenv_calls)" -eq 1 ]
-  BIVY_WRITTEN=0
+  POVY_WRITTEN=0
   gui_apply
   [ "$(setenv_calls)" -eq 1 ]
-  [ "$BIVY_WRITTEN" -eq 0 ]
+  [ "$POVY_WRITTEN" -eq 0 ]
 }
 
 @test "macOS: a launchctl that fails is a warning, not an error" {
   use_darwin
-  BIVY_LAUNCHCTL=false
+  POVY_LAUNCHCTL=false
   run gui_apply
   [ "$status" -eq 0 ]
   [[ "$output" == *"next login"* ]]
@@ -67,16 +67,16 @@ need_plutil() {
   use_darwin
   gui_apply
   plutil -lint "$PLIST"
-  [ "$(plutil -extract Label raw -o - "$PLIST")" = bivy.env ]
+  [ "$(plutil -extract Label raw -o - "$PLIST")" = povy.env ]
   [ "$(plutil -extract RunAtLoad raw -o - "$PLIST")" = true ]
   [ "$(plutil -extract ProgramArguments.4 raw -o - "$PLIST")" = /bin/launchctl ]
   local script
   script=$(plutil -extract ProgramArguments.2 raw -o - "$PLIST")
-  [[ "$script" == *'"$HOME/.config/bivy/env.sh"'* ]]
+  [[ "$script" == *'"$HOME/.config/povy/env.sh"'* ]]
 
   # What launchd would run at login, with the stub in place of /bin/launchctl.
   rm -f "$STUB_DIR/PATH"
-  env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/sh -c "$script" bivy-gui-env "$BIVY_LAUNCHCTL"
+  env -i HOME="$HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/sh -c "$script" povy-gui-env "$POVY_LAUNCHCTL"
   [ "$(cat "$STUB_DIR/PATH")" = "$SHIMS:$LOCAL_BIN:/usr/bin:/bin:/usr/sbin:/sbin" ]
 }
 
@@ -84,15 +84,15 @@ need_plutil() {
   need_plutil
   use_darwin
   export XDG_CONFIG_HOME="$BATS_TEST_TMPDIR/a&b <c> 'd'"
-  bivy_init_paths
-  bivy_ensure_dirs
+  povy_init_paths
+  povy_ensure_dirs
   shell_write_env
   gui_apply
   plutil -lint "$PLIST"
   local script
   script=$(plutil -extract ProgramArguments.2 raw -o - "$PLIST")
   rm -f "$STUB_DIR/PATH"
-  env -i HOME="$HOME" PATH=/usr/bin:/bin /bin/sh -c "$script" bivy-gui-env "$BIVY_LAUNCHCTL"
+  env -i HOME="$HOME" PATH=/usr/bin:/bin /bin/sh -c "$script" povy-gui-env "$POVY_LAUNCHCTL"
   [ "$(cat "$STUB_DIR/PATH")" = "$SHIMS:$LOCAL_BIN:/usr/bin:/bin" ]
 }
 
@@ -111,7 +111,7 @@ need_plutil() {
 @test "Linux: a path that systemd could reinterpret is not written" {
   use_linux
   export MISE_DATA_DIR="$HOME/my \$dir"
-  bivy_init_paths
+  povy_init_paths
   run gui_apply
   [ "$status" -eq 0 ]
   [[ "$output" == *"cannot be written safely"* ]]

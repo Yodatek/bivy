@@ -11,8 +11,8 @@ setup() {
 # Runs init with the profile, then fills the secret given as KEY=VALUE.
 prepare() {
   write_config "$CONFIG" "$PROFILE"
-  bivy init --config "$CONFIG"
-  [ -z "${1:-}" ] || printf '%s\n' "$1" >>"$HOME/.config/bivy/.env"
+  povy init --config "$CONFIG"
+  [ -z "${1:-}" ] || printf '%s\n' "$1" >>"$HOME/.config/povy/.env"
 }
 
 FILE_ENTRY='[[files]]
@@ -24,12 +24,12 @@ target = ".out/t"'
 required = [\"NEEDED\"]
 $FILE_ENTRY" 't={{NEEDED}}'
   prepare
-  run bivy apply
+  run povy apply
   [ "$status" -ne 0 ]
   [[ "$output" == *NEEDED* ]]
   [ ! -e "$HOME/.out/t" ]
   [ ! -e "$HOME/.zshenv" ]
-  [ ! -e "$HOME/.config/mise/conf.d/bivy.toml" ]
+  [ ! -e "$HOME/.config/mise/conf.d/povy.toml" ]
 }
 
 @test "an unknown placeholder stops apply before any file is written" {
@@ -38,7 +38,7 @@ $FILE_ENTRY" 't={{NEEDED}}'
 source = \"files/bad\"
 target = \".out/bad\"" 't=fine' 'bad={{NOPE}}'
   prepare
-  run bivy apply
+  run povy apply
   [ "$status" -ne 0 ]
   [[ "$output" == *NOPE* ]]
   [ ! -e "$HOME/.out/t" ]
@@ -50,7 +50,7 @@ target = \".out/bad\"" 't=fine' 'bad={{NOPE}}'
 required = [\"S\"]
 $FILE_ENTRY" 't=[{{S}}] {{ not.a.placeholder }} {{name}}'
   prepare 'S=a&b\c/d$e`f {{name}}'
-  run bivy apply
+  run povy apply
   [ "$status" -eq 0 ]
   [ "$(cat "$HOME/.out/t")" = '[a&b\c/d$e`f {{name}}] {{ not.a.placeholder }} Test User' ]
 }
@@ -65,8 +65,8 @@ $FILE_ENTRY" 't={{A}}|{{B}}|{{C}}|{{D}}'
     printf "B='three'\n"
     printf 'C=four\r\n'
     printf 'D=$(touch %s/pwned)\n' "$BATS_TEST_TMPDIR"
-  } >>"$HOME/.config/bivy/.env"
-  run bivy apply
+  } >>"$HOME/.config/povy/.env"
+  run povy apply
   [ "$status" -eq 0 ]
   [ "$(cat "$HOME/.out/t")" = "one two|three|four|\$(touch $BATS_TEST_TMPDIR/pwned)" ]
   [ ! -e "$BATS_TEST_TMPDIR/pwned" ]
@@ -81,7 +81,7 @@ $FILE_ENTRY" 't={{A}}|{{B}}|{{C}}|{{D}}'
 source = \"files/t\"
 target = \"$target\"" 't=x'
     write_config "$CONFIG" "$PROFILE"
-    run bivy init --config "$CONFIG"
+    run povy init --config "$CONFIG"
     [ "$status" -ne 0 ]
     [[ "$output" == *"home directory"* ]]
   done
@@ -94,7 +94,7 @@ target = \"$target\"" 't=x'
   printf '[[files]]\nsource = "files/link"\ntarget = ".x"\n' >"$PROFILE/profile.toml"
   commit_all "$PROFILE"
   write_config "$CONFIG" "$PROFILE"
-  run bivy init --config "$CONFIG"
+  run povy init --config "$CONFIG"
   [ "$status" -ne 0 ]
 }
 
@@ -113,8 +113,8 @@ target = ".x"'; do
     rm -rf "$PROFILE"
     make_custom_profile "$PROFILE" "$body"
     write_config "$CONFIG" "$PROFILE"
-    rm -rf "$HOME/.local/state/bivy/profile"
-    run bivy init --config "$CONFIG"
+    rm -rf "$HOME/.local/state/povy/profile"
+    run povy init --config "$CONFIG"
     [ "$status" -ne 0 ]
   done
 }
@@ -124,7 +124,7 @@ target = ".x"'; do
   echo x >"$PROFILE/README"
   commit_all "$PROFILE"
   write_config "$CONFIG" "$PROFILE"
-  run bivy init --config "$CONFIG"
+  run povy init --config "$CONFIG"
   [ "$status" -ne 0 ]
   [[ "$output" == *profile.toml* ]]
 }
@@ -132,17 +132,17 @@ target = ".x"'; do
 @test "a new profile commit is picked up, an unreachable remote is not fatal" {
   make_custom_profile "$PROFILE" "$FILE_ENTRY" 't=one'
   prepare
-  bivy apply
+  povy apply
   [ "$(cat "$HOME/.out/t")" = one ]
 
   echo two >"$PROFILE/files/t"
   commit_all "$PROFILE"
-  bivy apply
+  povy apply
   [ "$(cat "$HOME/.out/t")" = two ]
-  [ -n "$(find "$HOME/.local/state/bivy/backups" -name t)" ]
+  [ -n "$(find "$HOME/.local/state/povy/backups" -name t)" ]
 
   mv "$PROFILE" "$PROFILE.gone"
-  run bivy apply
+  run povy apply
   [ "$status" -eq 0 ]
   [[ "$output" == *"local copy"* ]]
 }
@@ -152,8 +152,8 @@ target = ".x"'; do
   make_custom_profile "$PROFILE.2" "$FILE_ENTRY" 't=two'
   prepare
   write_config "$CONFIG" "$PROFILE.2"
-  bivy init --config "$CONFIG"
-  bivy apply
+  povy init --config "$CONFIG"
+  povy apply
   [ "$(cat "$HOME/.out/t")" = two ]
 }
 
@@ -161,7 +161,7 @@ target = ".x"'; do
   make_custom_profile "$PROFILE" "$FILE_ENTRY" 't=x'
   prepare
   mkdir -p "$HOME/.out/t/keep"
-  run bivy apply
+  run povy apply
   [ "$status" -ne 0 ]
   [ -d "$HOME/.out/t/keep" ]
 }
@@ -172,12 +172,12 @@ target = ".x"'; do
   mkdir -p "$HOME/.out"
   echo original >"$BATS_TEST_TMPDIR/link-target"
   ln -s "$BATS_TEST_TMPDIR/link-target" "$HOME/.out/t"
-  run bivy apply
+  run povy apply
   [ "$status" -eq 0 ]
   [ ! -L "$HOME/.out/t" ]
   [ "$(cat "$HOME/.out/t")" = new ]
   [ "$(cat "$BATS_TEST_TMPDIR/link-target")" = original ]
-  [ -L "$(find "$HOME/.local/state/bivy/backups" -name t)" ]
+  [ -L "$(find "$HOME/.local/state/povy/backups" -name t)" ]
 }
 
 @test "machine tools override profile tools, and yq stays declared" {
@@ -185,20 +185,20 @@ target = ".x"'; do
 jq = "1.7"'
   write_config "$CONFIG" "$PROFILE"
   printf '[tools]\njq = "1.7.1"\n' >>"$CONFIG"
-  bivy init --config "$CONFIG"
-  bivy apply
-  grep -qxF '"jq" = "1.7.1"' "$HOME/.config/mise/conf.d/bivy.toml"
-  grep -qxF '"yq" = "4"' "$HOME/.config/mise/conf.d/bivy.toml"
-  [ "$(grep -c '"jq"' "$HOME/.config/mise/conf.d/bivy.toml")" -eq 1 ]
+  povy init --config "$CONFIG"
+  povy apply
+  grep -qxF '"jq" = "1.7.1"' "$HOME/.config/mise/conf.d/povy.toml"
+  grep -qxF '"yq" = "4"' "$HOME/.config/mise/conf.d/povy.toml"
+  [ "$(grep -c '"jq"' "$HOME/.config/mise/conf.d/povy.toml")" -eq 1 ]
 }
 
 @test "a tool can list several versions, all installed, the first one by default" {
   make_custom_profile "$PROFILE" '[tools]
 jq = ["1.7.1", "1.6"]'
   write_config "$CONFIG" "$PROFILE"
-  bivy init --config "$CONFIG"
-  bivy apply
-  grep -qxF '"jq" = ["1.7.1", "1.6"]' "$HOME/.config/mise/conf.d/bivy.toml"
+  povy init --config "$CONFIG"
+  povy apply
+  grep -qxF '"jq" = ["1.7.1", "1.6"]' "$HOME/.config/mise/conf.d/povy.toml"
   cd "$HOME"
   [ "$(env -i HOME="$HOME" MISE_DATA_DIR="$MISE_DATA_DIR" PATH=/usr/bin:/bin bash -lc 'jq --version')" = jq-1.7.1 ]
   [ -x "$(mise where jq@1.6)/bin/jq" ] || [ -x "$(mise where jq@1.6)/jq" ]
@@ -211,7 +211,7 @@ jq = ["1.7.1", "1.6"]'
   for tools in 'jq = []' 'jq = ["1.7.1", "bad version"]' 'jq = [["1.7.1"]]' 'jq = [{ v = "1" }]' 'jq = ["1.*"]'; do
     write_config "$CONFIG"
     printf '[tools]\n%s\n' "$tools" >>"$CONFIG"
-    run bivy init --config "$CONFIG"
+    run povy init --config "$CONFIG"
     [ "$status" -ne 0 ] || {
       echo "accepted: $tools"
       return 1
@@ -224,7 +224,7 @@ jq = ["1.7.1", "1.6"]'
 jq = "1.7.1"
 "aqua:mikefarah/yq" = "4.54.1"'
   write_config "$CONFIG" "$PROFILE"
-  bivy init --config "$CONFIG"
+  povy init --config "$CONFIG"
   load_libs
   yq_ensure
   config_load
@@ -240,7 +240,7 @@ target = ".out/a"
 source = "files/b"
 target = ".out/with space/b"' 'a=first' 'b=second'
   prepare
-  bivy apply
+  povy apply
   [ "$(cat "$HOME/.out/a")" = first ]
   [ "$(cat "$HOME/.out/with space/b")" = second ]
 }
@@ -249,18 +249,18 @@ target = ".out/with space/b"' 'a=first' 'b=second'
   write_config "$CONFIG"
   mkdir -p "$HOME/.config/mise"
   printf '[settings]\nexperimental = true\n' >"$HOME/.config/mise/config.toml"
-  bivy init --config "$CONFIG"
-  bivy apply
+  povy init --config "$CONFIG"
+  povy apply
   [ "$(cat "$HOME/.config/mise/config.toml")" = $'[settings]\nexperimental = true' ]
 }
 
 @test "apply works from a directory with an untrusted mise.toml" {
   write_config "$CONFIG"
-  bivy init --config "$CONFIG"
+  povy init --config "$CONFIG"
   mkdir "$BATS_TEST_TMPDIR/project"
   printf '[tools]\njq = "1.6"\n' >"$BATS_TEST_TMPDIR/project/mise.toml"
   cd "$BATS_TEST_TMPDIR/project"
-  run bivy apply
+  run povy apply
   [ "$status" -eq 0 ]
 }
 
@@ -271,17 +271,17 @@ jq = "1.7.1"'
   printf '[secrets]\nrequired = ["ALT_SECRET"]\n' >"$PROFILE/profile.toml"
   commit_all "$PROFILE"
   git -C "$PROFILE" switch --quiet main
-  local clone=$HOME/.local/state/bivy/profile
+  local clone=$HOME/.local/state/povy/profile
 
   write_config "$CONFIG" "$PROFILE"
   printf 'profile_branch = "alt"\n' >>"$CONFIG"
-  run bivy init --config "$CONFIG"
+  run povy init --config "$CONFIG"
   [ "$status" -eq 0 ]
   [[ "$output" == *"ALT_SECRET"* ]]
   [ "$(git -C "$clone" rev-parse --abbrev-ref HEAD)" = alt ]
 
   write_config "$CONFIG" "$PROFILE"
-  run bivy init --config "$CONFIG"
+  run povy init --config "$CONFIG"
   [ "$status" -eq 0 ]
   [ "$(git -C "$clone" rev-parse --abbrev-ref HEAD)" = main ]
   [[ "$output" != *"ALT_SECRET"* ]]
@@ -292,7 +292,7 @@ jq = "1.7.1"'
 jq = "1.7.1"'
   write_config "$CONFIG" "$PROFILE"
   printf 'profile_branch = "nope"\n' >>"$CONFIG"
-  run bivy init --config "$CONFIG"
+  run povy init --config "$CONFIG"
   [ "$status" -ne 0 ]
   [[ "$output" == *"could not clone the profile"*"branch nope"* ]]
 }
@@ -302,7 +302,7 @@ jq = "1.7.1"'
   for value in '"-x"' '"a b"' '"a..b"' '3'; do
     write_config "$CONFIG" "$PROFILE"
     printf 'profile_branch = %s\n' "$value" >>"$CONFIG"
-    run bivy init --config "$CONFIG"
+    run povy init --config "$CONFIG"
     [ "$status" -ne 0 ] || {
       echo "accepted: $value"
       return 1
@@ -310,25 +310,25 @@ jq = "1.7.1"'
   done
   write_config "$CONFIG"
   printf 'profile_branch = "main"\n' >>"$CONFIG"
-  run bivy init --config "$CONFIG"
+  run povy init --config "$CONFIG"
   [ "$status" -ne 0 ]
   [[ "$output" == *"profile_branch needs a profile"* ]]
 }
 
 @test "profile_path reads the profile from a directory of its repository" {
   mkdir -p "$PROFILE/nested"
-  cp -R "$BIVY_ROOT/tests/fixtures/profile" "$PROFILE/nested/profile"
+  cp -R "$POVY_ROOT/tests/fixtures/profile" "$PROFILE/nested/profile"
   commit_all "$PROFILE"
   write_config "$CONFIG" "$PROFILE"
   printf 'profile_path = "nested/profile/"\n' >>"$CONFIG"
-  bivy init --config "$CONFIG"
-  echo 'EXAMPLE_API_TOKEN=x' >>"$HOME/.config/bivy/.env"
-  run bivy apply
+  povy init --config "$CONFIG"
+  echo 'EXAMPLE_API_TOKEN=x' >>"$HOME/.config/povy/.env"
+  run povy apply
   [ "$status" -eq 0 ]
-  grep -qx 'token = x' "$HOME/.config/bivy-example/example.conf"
+  grep -qx 'token = x' "$HOME/.config/povy-example/example.conf"
   run env -i HOME="$HOME" PATH=/usr/bin:/bin bash -lc 'example-hello'
   [ "$output" = "hello from the example profile" ]
-  run bivy doctor
+  run povy doctor
   [[ "$output" == *"[ok]   profile $PROFILE, path nested/profile"* ]]
   [[ "$output" == *"[ok]   profile commands on PATH: bin"* ]]
 }
@@ -344,7 +344,7 @@ jq = "1.7.1"'
   for value in '"../outside"' '"/abs"' '"a/../b"' '3' '"missing"' '"escape"' '"empty"'; do
     write_config "$CONFIG" "$PROFILE"
     printf 'profile_path = %s\n' "$value" >>"$CONFIG"
-    run bivy init --config "$CONFIG"
+    run povy init --config "$CONFIG"
     [ "$status" -ne 0 ] || {
       echo "accepted: $value"
       return 1
@@ -352,7 +352,7 @@ jq = "1.7.1"'
   done
   write_config "$CONFIG"
   printf 'profile_path = "x"\n' >>"$CONFIG"
-  run bivy init --config "$CONFIG"
+  run povy init --config "$CONFIG"
   [ "$status" -ne 0 ]
   [[ "$output" == *"profile_path needs a profile"* ]]
 }

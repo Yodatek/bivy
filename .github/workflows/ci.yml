@@ -39,7 +39,7 @@ jobs:
       - name: Install zsh
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y zsh
-      # /bin first: on macOS, bivy must run on the bash 3.2 that ships with the
+      # /bin first: on macOS, povy must run on the bash 3.2 that ships with the
       # system, not on a newer one from Homebrew.
       - run: PATH="/bin:$PATH" mise run test
         env:

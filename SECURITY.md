@@ -3,12 +3,12 @@
 ## Supported versions
 
 Fixes go to `main` and to the next release. Only the latest release is supported, so
-update before you report: `bivy --version` tells which one you run.
+update before you report: `povy --version` tells which one you run.
 
 ## Reporting a vulnerability
 
 Report it privately through
-[GitHub's private reporting form](https://github.com/Yodatek/bivy/security/advisories/new),
+[GitHub's private reporting form](https://github.com/Yodatek/povy/security/advisories/new),
 never in a public issue, pull request or discussion. Include:
 
 - what an attacker can do, and under which conditions;
@@ -20,7 +20,7 @@ in the advisory unless you prefer otherwise.
 
 ## Scope
 
-bivy handles secrets and writes in the home directory, so these are in scope:
+povy handles secrets and writes in the home directory, so these are in scope:
 
 - `.env`, generated files or backups readable by other users;
 - a value from `config.toml`, `.env` or a profile that runs as code where it should not;

@@ -6,8 +6,8 @@ load helper
 real_home_snapshot() {
   local f
   for f in .zshrc .zshenv .zprofile .bashrc .bash_profile .profile .gitconfig .config/git/config \
-    .ssh/config .m2/settings.xml .config/bivy/config.toml .config/mise/conf.d/bivy.toml \
-    Library/LaunchAgents/bivy.env.plist .config/environment.d/50-bivy.conf; do
+    .ssh/config .m2/settings.xml .config/povy/config.toml .config/mise/conf.d/povy.toml \
+    Library/LaunchAgents/povy.env.plist .config/environment.d/50-povy.conf; do
     if [ -e "$REAL_HOME/$f" ]; then
       printf '%s %s\n' "$f" "$(cksum <"$REAL_HOME/$f")"
     else
@@ -27,12 +27,12 @@ setup_file() {
   write_config "$BATS_FILE_TMPDIR/config.toml" "$BATS_FILE_TMPDIR/profile"
   printf '# mine\nexport MINE=1\n' >"$HOME/.zshenv"
   echo "user content" >"$BATS_FILE_TMPDIR/old.conf"
-  mkdir -p "$HOME/.config/bivy-example"
-  cp "$BATS_FILE_TMPDIR/old.conf" "$HOME/.config/bivy-example/example.conf"
+  mkdir -p "$HOME/.config/povy-example"
+  cp "$BATS_FILE_TMPDIR/old.conf" "$HOME/.config/povy-example/example.conf"
 
-  bivy init --config "$BATS_FILE_TMPDIR/config.toml"
-  echo 'EXAMPLE_API_TOKEN=s3cret&\value' >>"$HOME/.config/bivy/.env"
-  bivy apply >"$BATS_FILE_TMPDIR/apply.log" 2>&1
+  povy init --config "$BATS_FILE_TMPDIR/config.toml"
+  echo 'EXAMPLE_API_TOKEN=s3cret&\value' >>"$HOME/.config/povy/.env"
+  povy apply >"$BATS_FILE_TMPDIR/apply.log" 2>&1
 }
 
 setup() {
@@ -40,27 +40,27 @@ setup() {
 }
 
 @test "doctor passes after init --config and apply" {
-  run bivy doctor
+  run povy doctor
   [ "$status" -eq 0 ]
   [[ "$output" == *"all good"* ]]
   [[ "$output" != *"FAIL"* ]]
 }
 
 @test "secrets file has mode 600" {
-  [ "$(file_mode "$HOME/.config/bivy/.env")" = 600 ]
+  [ "$(file_mode "$HOME/.config/povy/.env")" = 600 ]
 }
 
 @test "the template is rendered with mode 600, the secret verbatim" {
-  local target="$HOME/.config/bivy-example/example.conf"
+  local target="$HOME/.config/povy-example/example.conf"
   [ "$(file_mode "$target")" = 600 ]
   grep -qxF 'user = Test User' "$target"
   grep -qxF 'token = s3cret&\value' "$target"
-  grep -qxF "cache = $HOME/.cache/bivy-example" "$target"
+  grep -qxF "cache = $HOME/.cache/povy-example" "$target"
 }
 
 @test "the replaced file is backed up with its content" {
   local found
-  found=$(find "$HOME/.local/state/bivy/backups" -name example.conf)
+  found=$(find "$HOME/.local/state/povy/backups" -name example.conf)
   [ -n "$found" ]
   grep -qxF 'user content' "$found"
   [ "$(file_mode "$found")" = 600 ]
@@ -68,7 +68,7 @@ setup() {
 
 @test "existing startup content is kept" {
   grep -qxF 'export MINE=1' "$HOME/.zshenv"
-  [ "$(head -n 1 "$HOME/.zshenv")" = '# >>> bivy >>>' ]
+  [ "$(head -n 1 "$HOME/.zshenv")" = '# >>> povy >>>' ]
 }
 
 @test "profile tools run from non-interactive shells with an empty environment" {
@@ -92,12 +92,12 @@ setup() {
 @test "a second apply changes nothing and adds no backup" {
   local before after backups_before backups_after
   before=$(home_fingerprint)
-  backups_before=$(ls "$HOME/.local/state/bivy/backups")
-  run bivy apply
+  backups_before=$(ls "$HOME/.local/state/povy/backups")
+  run povy apply
   [ "$status" -eq 0 ]
   [[ "$output" == *"0 written"* ]]
   after=$(home_fingerprint)
-  backups_after=$(ls "$HOME/.local/state/bivy/backups")
+  backups_after=$(ls "$HOME/.local/state/povy/backups")
   [ "$before" = "$after" ]
   [ "$backups_before" = "$backups_after" ]
 }
@@ -117,7 +117,7 @@ setup() {
 }
 
 @test "no staging directory with rendered secrets is left behind" {
-  [ -z "$(find "$HOME/.local/state/bivy" -maxdepth 1 -name 'staging.*')" ]
+  [ -z "$(find "$HOME/.local/state/povy" -maxdepth 1 -name 'staging.*')" ]
 }
 
 @test "the real home is untouched" {

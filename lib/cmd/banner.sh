@@ -1,7 +1,7 @@
 # shellcheck shell=bash
-# bivy banner: what is installed, what does not work right now and how loaded the
+# povy banner: what is installed, what does not work right now and how loaded the
 # machine is. It runs in every new terminal, so it only makes cheap checks: no yq,
-# no network, no shell started. bivy doctor makes the thorough ones.
+# no network, no shell started. povy doctor makes the thorough ones.
 #
 # The full layout needs a UTF-8 terminal at least 80 columns wide; otherwise, or
 # when the output is not a terminal, the banner fits on a few lines.
@@ -20,17 +20,17 @@ B_LOGO_COLORS=""
 B_CPU="" B_RAM="" B_DISK="" B_DISK_FULL=0
 B_TOOL_LIST="" B_MISSING="" B_NO_MISE=0
 
-# The word BIVY, six rows of the same width.
-BANNER_LOGO='██████╗ ██╗██╗   ██╗██╗   ██╗
-██╔══██╗██║██║   ██║╚██╗ ██╔╝
-██████╔╝██║██║   ██║ ╚████╔╝
-██╔══██╗██║╚██╗ ██╔╝  ╚██╔╝
-██████╔╝██║ ╚████╔╝    ██║
-╚═════╝ ╚═╝  ╚═══╝     ╚═╝   '
+# The word POVY in six rows, padded to the widest when drawn.
+BANNER_LOGO='██████╗  ██████╗ ██╗   ██╗██╗   ██╗
+██╔══██╗██╔═══██╗██║   ██║╚██╗ ██╔╝
+██████╔╝██║   ██║██║   ██║ ╚████╔╝
+██╔═══╝ ██║   ██║╚██╗ ██╔╝  ╚██╔╝
+██║     ╚██████╔╝ ╚████╔╝    ██║
+╚═╝      ╚═════╝   ╚═══╝     ╚═╝'
 
-# IDE terminals, agents and dumb terminals get no banner, unless BIVY_BANNER=1.
+# IDE terminals, agents and dumb terminals get no banner, unless POVY_BANNER=1.
 banner_quiet() {
-  case "${BIVY_BANNER:-}" in
+  case "${POVY_BANNER:-}" in
     0) return 0 ;;
     1) return 1 ;;
   esac
@@ -108,8 +108,8 @@ banner_warn() { banner_problem "$B_WARN" "$B_MARK_WARN" "$*"; }
 
 # Values of one kind from the file apply leaves for the banner.
 banner_applied() {
-  [ -f "$BIVY_APPLIED" ] || return 0
-  awk -F'\t' -v kind="$1" '$1 == kind { print $2 }' "$BIVY_APPLIED"
+  [ -f "$POVY_APPLIED" ] || return 0
+  awk -F'\t' -v kind="$1" '$1 == kind { print $2 }' "$POVY_APPLIED"
 }
 
 banner_profile() {
@@ -149,7 +149,7 @@ banner_collect_metrics() {
 
 # One mise call gives both the tools and, on stderr, those not installed. Versions of
 # mise word that warning differently, so any tool@version that a warning about a
-# missing tool names is kept. yq is left out: bivy declares it for itself. Sets
+# missing tool names is kept. yq is left out: povy declares it for itself. Sets
 # B_TOOL_LIST to "name<TAB>first version<TAB>other versions" lines.
 banner_collect_tools() {
   local out line name versions version word first others
@@ -218,7 +218,7 @@ banner_compact_metrics() {
 banner_compact() {
   local profile parts="" name first others
   profile=$(banner_profile)
-  printf '%s%s bivy%s %s %s@%s' "$B_BOLD" "$B_ICON" "$B_OFF" "$B_SEP" "${USER:-$(id -un)}" "${HOSTNAME%%.*}"
+  printf '%s%s povy%s %s %s@%s' "$B_BOLD" "$B_ICON" "$B_OFF" "$B_SEP" "${USER:-$(id -un)}" "${HOSTNAME%%.*}"
   [ -z "$profile" ] || printf ' %s profile %s' "$B_SEP" "$profile"
   printf ' %s %s\n' "$B_SEP" "$(date '+%a %d %b %H:%M')"
   banner_compact_metrics
@@ -364,10 +364,10 @@ banner_full_tools() {
 
 banner_full_end() {
   if [ "$BANNER_PROBLEMS" -eq 0 ]; then
-    printf '  %s╰─%s %s%s all good%s  %sbivy tools %s bivy doctor%s\n' "$B_TREE" "$B_OFF" \
+    printf '  %s╰─%s %s%s all good%s  %spovy tools %s povy doctor%s\n' "$B_TREE" "$B_OFF" \
       "$B_BOLD$B_OK" "$B_MARK_OK" "$B_OFF" "$B_TREE" "$B_SEP" "$B_OFF"
   else
-    printf '  %s╰─%s %sbivy doctor tells more%s\n' "$B_TREE" "$B_OFF" "$B_DIM" "$B_OFF"
+    printf '  %s╰─%s %spovy doctor tells more%s\n' "$B_TREE" "$B_OFF" "$B_DIM" "$B_OFF"
   fi
 }
 
@@ -375,15 +375,15 @@ banner_full_end() {
 
 banner_checks() {
   local secrets missing target path mode state overriding shadowed
-  [ "$B_NO_MISE" -eq 0 ] || banner_fail "mise is not installed; run the bivy bootstrap"
-  [ -z "$B_MISSING" ] || banner_fail "not installed:$B_MISSING; run: bivy apply"
+  [ "$B_NO_MISE" -eq 0 ] || banner_fail "mise is not installed; run the povy bootstrap"
+  [ -z "$B_MISSING" ] || banner_fail "not installed:$B_MISSING; run: povy apply"
   [ "$B_DISK_FULL" -eq 0 ] || banner_warn "the disk holding $(tilde_path "$HOME") is almost full"
-  if [ ! -f "$BIVY_APPLIED" ]; then
-    banner_warn "bivy apply has not run yet"
+  if [ ! -f "$POVY_APPLIED" ]; then
+    banner_warn "povy apply has not run yet"
     return 0
   fi
   case ":$PATH:" in
-    *":$BIVY_SHIMS_DIR:"*) ;;
+    *":$POVY_SHIMS_DIR:"*) ;;
     *) banner_fail "the mise shims are not on the PATH of this shell; open a new terminal" ;;
   esac
   if mise_find >/dev/null; then
@@ -392,23 +392,23 @@ banner_checks() {
     shadowed=""
   fi
   [ -z "$shadowed" ] || banner_warn "$(shims_shadowed_summary "$shadowed") before the mise shims"
-  [ ! "$BIVY_CONFIG_FILE" -nt "$BIVY_APPLIED" ] ||
-    banner_warn "config.toml changed since the last bivy apply"
-  [ ! "$BIVY_ENV_FILE" -nt "$BIVY_APPLIED" ] ||
-    banner_warn ".env changed since the last bivy apply"
+  [ ! "$POVY_CONFIG_FILE" -nt "$POVY_APPLIED" ] ||
+    banner_warn "config.toml changed since the last povy apply"
+  [ ! "$POVY_ENV_FILE" -nt "$POVY_APPLIED" ] ||
+    banner_warn ".env changed since the last povy apply"
 
   secrets=$(banner_applied secret)
   missing=$(env_missing "$secrets")
-  [ -z "$missing" ] || banner_fail "empty secrets in $(tilde_path "$BIVY_ENV_FILE"): $(printf '%s' "$missing" | tr '\n' ' ')"
-  if [ -f "$BIVY_ENV_FILE" ]; then
-    mode=$(os_file_mode "$BIVY_ENV_FILE") || mode=""
-    [ "$mode" = 600 ] || banner_fail "$(tilde_path "$BIVY_ENV_FILE") has mode $mode, expected 600"
+  [ -z "$missing" ] || banner_fail "empty secrets in $(tilde_path "$POVY_ENV_FILE"): $(printf '%s' "$missing" | tr '\n' ' ')"
+  if [ -f "$POVY_ENV_FILE" ]; then
+    mode=$(os_file_mode "$POVY_ENV_FILE") || mode=""
+    [ "$mode" = 600 ] || banner_fail "$(tilde_path "$POVY_ENV_FILE") has mode $mode, expected 600"
   fi
   while IFS= read -r target; do
     [ -n "$target" ] || continue
     path="$HOME/$target"
     if [ ! -f "$path" ]; then
-      banner_fail "$(tilde_path "$path") is missing; run: bivy apply"
+      banner_fail "$(tilde_path "$path") is missing; run: povy apply"
       continue
     fi
     mode=$(os_file_mode "$path") || mode=""
@@ -416,12 +416,12 @@ banner_checks() {
   done <<<"$(banner_applied file)"
 
   os_gui_session_state && state=0 || state=$?
-  [ "$state" -ne 1 ] || banner_warn "graphical apps do not see the shims; log out and back in, or run: bivy apply"
+  [ "$state" -ne 1 ] || banner_warn "graphical apps do not see the shims; log out and back in, or run: povy apply"
 
   if command -v git >/dev/null 2>&1; then
     overriding=$(git_overriding_files 2>/dev/null) || overriding=""
     [ -z "$overriding" ] ||
-      banner_warn "user.name or user.email set after the bivy include overrides it in: $(printf '%s' "$overriding" | tr '\n' ' ')"
+      banner_warn "user.name or user.email set after the povy include overrides it in: $(printf '%s' "$overriding" | tr '\n' ' ')"
   fi
 }
 
@@ -438,8 +438,8 @@ cmd_banner() {
   # A part that fails shows its error and the rest still prints.
   set +e +o pipefail
 
-  bivy_init_paths
-  bivy_load_os
+  povy_init_paths
+  povy_load_os
   banner_style
   banner_collect_metrics
   banner_collect_tools
@@ -456,6 +456,6 @@ cmd_banner() {
   if [ "$BANNER_PROBLEMS" -eq 0 ]; then
     printf '   %s%s all good%s\n' "$B_OK" "$B_MARK_OK" "$B_OFF"
   else
-    printf '   %sbivy doctor tells more%s\n' "$B_DIM" "$B_OFF"
+    printf '   %spovy doctor tells more%s\n' "$B_DIM" "$B_OFF"
   fi
 }

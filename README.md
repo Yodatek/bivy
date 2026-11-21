@@ -1,53 +1,53 @@
-# bivy
+# povy
 
 A portable development environment for macOS, Linux and Windows through WSL2.
 
-bivy keeps your real `HOME`. Tools come from [mise](https://mise.jdx.dev), and their
+povy keeps your real `HOME`. Tools come from [mise](https://mise.jdx.dev), and their
 shims are on `PATH` in interactive and non-interactive shells alike, and in graphical
 apps, so IDEs and coding agents see the same tools, SSH keys and config files you do.
 
 <p align="center">
   <img src="docs/banner.png" width="720"
-    alt="The bivy banner: the BIVY logo in a frame, gauges for CPU, memory and disk, the tools with their versions, and all good">
+    alt="The povy banner: the POVY logo in a frame, gauges for CPU, memory and disk, the tools with their versions, and all good">
 </p>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Yodatek/bivy/main/bootstrap | bash
+curl -fsSL https://raw.githubusercontent.com/Yodatek/povy/main/bootstrap | bash
 ```
 
 The bootstrap installs Git and mise if they are missing, clones the engine into
-`~/.local/share/bivy` and links the command at `~/.local/bin/bivy`. On a terminal it
+`~/.local/share/povy` and links the command at `~/.local/bin/povy`. On a terminal it
 then offers to configure the machine.
 
-To update bivy, run the same command again, then `bivy apply`. The
-[changelog](CHANGELOG.md) lists what each release changes, and `bivy --version` tells
+To update povy, run the same command again, then `povy apply`. The
+[changelog](CHANGELOG.md) lists what each release changes, and `povy --version` tells
 which one you run.
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `bivy init` | Asks for a name, an e-mail and an optional profile URL. Writes `~/.config/bivy/config.toml` and `.env` in mode 600, and opens `.env` in `$EDITOR` only if the profile needs secrets that are still empty. |
-| `bivy init --config <file>` | The same without questions or editor, from an existing `config.toml`. |
-| `bivy apply` | Installs the tools, puts the shims on the `PATH` of shells and graphical apps, sets the Git identity and writes the profile files. Running it again changes nothing. |
-| `bivy doctor` | Checks the real state and changes nothing. Exits 0 if all is well, 1 otherwise. |
-| `bivy banner` | Shows the tools, what does not work right now, and the CPU, memory and disk load. |
-| `bivy tools` | Lists each tool with the level that declares it (bivy, profile or machine) and the version mise runs, including tools that your own mise config sets or overrides. |
-| `bivy version` | Shows the release bivy is on, such as `0.1.0`, or `0.1.0-3-gabc1234` three commits after it. |
+| `povy init` | Asks for a name, an e-mail and an optional profile URL. Writes `~/.config/povy/config.toml` and `.env` in mode 600, and opens `.env` in `$EDITOR` only if the profile needs secrets that are still empty. |
+| `povy init --config <file>` | The same without questions or editor, from an existing `config.toml`. |
+| `povy apply` | Installs the tools, puts the shims on the `PATH` of shells and graphical apps, sets the Git identity and writes the profile files. Running it again changes nothing. |
+| `povy doctor` | Checks the real state and changes nothing. Exits 0 if all is well, 1 otherwise. |
+| `povy banner` | Shows the tools, what does not work right now, and the CPU, memory and disk load. |
+| `povy tools` | Lists each tool with the level that declares it (povy, profile or machine) and the version mise runs, including tools that your own mise config sets or overrides. |
+| `povy version` | Shows the release povy is on, such as `0.1.0`, or `0.1.0-3-gabc1234` three commits after it. |
 
 ## Three levels
 
 1. **The engine** is this repository. It holds nothing specific to a person or a company.
 2. **A profile** is an optional, separate Git repository, usually private.
-3. **The machine config** lives in `~/.config/bivy/` and is never versioned.
+3. **The machine config** lives in `~/.config/povy/` and is never versioned.
 
 ```toml
-# ~/.config/bivy/config.toml
+# ~/.config/povy/config.toml
 name = "Ada Lovelace"
 email = "ada@example.org"
 profile = "git@example.org:me/my-profile.git"
 profile_branch = "main" # optional: a branch of the profile repository, else its default
-profile_path = "bivy"   # optional: the directory of the repository that holds profile.toml
+profile_path = "povy"   # optional: the directory of the repository that holds profile.toml
 prompt = "starship"     # optional: starship, or none to keep yours; overrides the profile
 
 [tools]            # optional, overrides the profile
@@ -65,8 +65,8 @@ email = "ada@users.noreply.github.com"
 the repositories under its directory, through `includeIf "gitdir:..."`. The directory
 starts with `~/` or `/`.
 
-bivy includes its generated config from the top of your global Git config, so what you
-wrote below keeps precedence. A `[user]` there wins over every identity bivy sets, even
+povy includes its generated config from the top of your global Git config, so what you
+wrote below keeps precedence. A `[user]` there wins over every identity povy sets, even
 in an identity directory, so `apply` and `doctor` name the file that holds one.
 
 ## Profiles
@@ -81,7 +81,7 @@ bin = "bin"                         # optional, commands put on PATH
 shell = ["shell/aliases.sh"]        # optional, sourced by interactive shells
 
 [secrets]
-required = ["EXAMPLE_API_TOKEN"]   # read from ~/.config/bivy/.env
+required = ["EXAMPLE_API_TOKEN"]   # read from ~/.config/povy/.env
 
 [tools]
 jq = "1.7.1"
@@ -95,7 +95,7 @@ dnf = ["podman"]                    # Fedora, RHEL
 
 [[files]]
 source = "files/example.conf.tmpl"          # relative to the profile
-target = ".config/bivy-example/example.conf" # relative to the home directory
+target = ".config/povy-example/example.conf" # relative to the home directory
 ```
 
 Files are written in mode 600. Templates can use `{{name}}`, `{{email}}`, `{{home}}` and
@@ -121,7 +121,7 @@ Each new terminal shows the banner above: who and where, gauges for the CPU, mem
 disk load, the tools mise provides, then `all good` or one line per problem. A terminal
 narrower than 80 columns, or without UTF-8, gets the same on a few lines. It only makes
 checks that take no time, such as empty secrets, missing files, a config changed since the
-last `apply`, a tool not installed, or a command that another directory of PATH hides. `bivy doctor` makes the thorough ones.
+last `apply`, a tool not installed, or a command that another directory of PATH hides. `povy doctor` makes the thorough ones.
 
 It stays quiet in a shell that is not interactive or does not write to a terminal, which
 covers scripts, SSH commands, and IDEs reading the shell environment. It also stays quiet
@@ -129,24 +129,24 @@ in the terminals of VS Code and its forks, Zed, JetBrains IDEs, Emacs and Claude
 
 | To | Do |
 | --- | --- |
-| hide it in one shell | `BIVY_BANNER=0` |
-| show it where it keeps quiet | `BIVY_BANNER=1` |
-| turn it off on the machine | `banner = false` in `config.toml`, then `bivy apply` |
+| hide it in one shell | `POVY_BANNER=0` |
+| show it where it keeps quiet | `POVY_BANNER=1` |
+| turn it off on the machine | `banner = false` in `config.toml`, then `povy apply` |
 
 ## Prompt
 
-With `prompt = "starship"`, in the profile or in `config.toml`, bivy installs
+With `prompt = "starship"`, in the profile or in `config.toml`, povy installs
 [Starship](https://starship.rs) with mise and starts it in interactive zsh and bash,
 after anything else in `.zshrc` and `.bashrc` has set a prompt, such as an Oh My Zsh
 theme. Its look comes from `~/.config/starship.toml`, which a profile can write. Without
-the key, or with `prompt = "none"`, bivy leaves the prompt alone.
+the key, or with `prompt = "none"`, povy leaves the prompt alone.
 
 ## What apply changes
 
-- `~/.config/mise/conf.d/bivy.toml` is generated. Your `~/.config/mise/config.toml` is
+- `~/.config/mise/conf.d/povy.toml` is generated. Your `~/.config/mise/config.toml` is
   not touched.
-- Marked blocks in the startup files source `~/.config/bivy/env.sh`, which puts the
-  shims on PATH, and `~/.config/bivy/interactive.sh`, which shows the banner and starts
+- Marked blocks in the startup files source `~/.config/povy/env.sh`, which puts the
+  shims on PATH, and `~/.config/povy/interactive.sh`, which shows the banner and starts
   the prompt:
   - `env` sits at the top of `.zshenv` and `.bashrc`, and at the bottom of `.zprofile`
     and your bash login file, after what they add to PATH, such as `brew shellenv`;
@@ -154,14 +154,14 @@ the key, or with `prompt = "none"`, bivy leaves the prompt alone.
 
   The rest of each file is kept, and a symlinked dotfile stays a symlink.
 - Graphical apps get the same `PATH`:
-  - on macOS, the LaunchAgent `~/Library/LaunchAgents/bivy.env.plist` runs
+  - on macOS, the LaunchAgent `~/Library/LaunchAgents/povy.env.plist` runs
     `launchctl setenv PATH` at each login, and `apply` runs it once right away;
-  - on Linux, `~/.config/environment.d/50-bivy.conf` is read by systemd from the next
+  - on Linux, `~/.config/environment.d/50-povy.conf` is read by systemd from the next
     login.
-- `~/.config/bivy/git/` is generated, and a marked block at the top of `~/.gitconfig`
+- `~/.config/povy/git/` is generated, and a marked block at the top of `~/.gitconfig`
   includes it. `~/.config/git/config` gets the block instead when it is the only global
   Git config.
-- Anything replaced is first copied to `~/.local/state/bivy/backups/<date>/`.
+- Anything replaced is first copied to `~/.local/state/povy/backups/<date>/`.
 
 ## Known limits
 

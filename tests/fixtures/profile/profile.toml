@@ -14,4 +14,4 @@ jq = "1.7.1"
 
 [[files]]
 source = "files/example.conf.tmpl"
-target = ".config/bivy-example/example.conf"
+target = ".config/povy-example/example.conf"

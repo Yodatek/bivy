@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renders docs/banner.png, the banner shown in the README, from this machine's own
 # banner. User, host and profile are replaced so that the picture holds nothing
-# personal. Run it where bivy is applied: mise run banner-image
+# personal. Run it where povy is applied: mise run banner-image
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -12,20 +12,20 @@ trap 'rm -rf "$work"' EXIT
 
 # The banner reads the profile name from the state apply leaves; a renamed copy
 # keeps the frame centred, which a replacement in the output would not.
-mkdir -p "$work/state/bivy"
+mkdir -p "$work/state/povy"
 awk -F'\t' -v OFS='\t' '$1 == "profile" && $2 != "" { $2 = "my-profile" } { print }' \
-  "$real_state/bivy/applied" >"$work/state/bivy/applied"
+  "$real_state/povy/applied" >"$work/state/povy/applied"
 
 # A login shell gives the PATH of a real terminal: under mise run or mise exec,
 # the tool directories come before the shims and the banner would report them.
 # shellcheck disable=SC2016 # $1 is expanded by the login shell.
 env -i HOME="$HOME" TERM=xterm-256color PATH=/usr/bin:/bin:/usr/sbin:/sbin \
   USER=ada HOSTNAME=laptop LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 COLUMNS=100 \
-  COLORTERM=truecolor CLICOLOR_FORCE=1 BIVY_BANNER=1 \
+  COLORTERM=truecolor CLICOLOR_FORCE=1 POVY_BANNER=1 \
   XDG_STATE_HOME="$work/state" MISE_STATE_DIR="$real_state/mise" \
-  bash -lc '"$1" banner' bivy "$root/bin/bivy" </dev/null >"$work/banner.ansi"
+  bash -lc '"$1" banner' povy "$root/bin/povy" </dev/null >"$work/banner.ansi"
 [ -s "$work/banner.ansi" ] || {
-  echo "error: bivy banner printed nothing" >&2
+  echo "error: povy banner printed nothing" >&2
   exit 1
 }
 

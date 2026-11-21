@@ -11,9 +11,9 @@ setup_file() {
   export MISE_CACHE_DIR="$BATS_SUITE_TMPDIR/mise-cache"
   make_profile_repo "$BATS_FILE_TMPDIR/profile"
   write_config "$BATS_FILE_TMPDIR/config.toml" "$BATS_FILE_TMPDIR/profile"
-  bivy init --config "$BATS_FILE_TMPDIR/config.toml"
-  echo 'EXAMPLE_API_TOKEN=x' >>"$HOME/.config/bivy/.env"
-  bivy apply
+  povy init --config "$BATS_FILE_TMPDIR/config.toml"
+  echo 'EXAMPLE_API_TOKEN=x' >>"$HOME/.config/povy/.env"
+  povy apply
 }
 
 setup() {
@@ -42,16 +42,16 @@ setup() {
   local login
   login=$(find "$HOME" -maxdepth 1 \( -name .bash_profile -o -name .profile \) | head -n 1)
   printf '. "$HOME/.bashrc"\n' >>"$login"
-  printf 'echo sourced\n' >>"$HOME/.local/state/bivy/profile/shell/example.sh"
+  printf 'echo sourced\n' >>"$HOME/.local/state/povy/profile/shell/example.sh"
   run env -i HOME="$HOME" PATH=/usr/bin:/bin TERM=dumb bash -l -i -c true
   [ "$(printf '%s\n' "$output" | grep -c '^sourced$')" -eq 1 ]
 }
 
 @test "doctor checks that the profile commands are on PATH" {
-  run bivy doctor
+  run povy doctor
   [[ "$output" == *"[ok]   profile commands on PATH: bin"* ]]
-  sed -i.bak '/\/profile\/bin"*$/d' "$HOME/.config/bivy/env.sh"
-  run bivy doctor
+  sed -i.bak '/\/profile\/bin"*$/d' "$HOME/.config/povy/env.sh"
+  run povy doctor
   [ "$status" -eq 1 ]
   [[ "$output" == *"profile commands in bin are not on PATH"* ]]
 }
@@ -60,14 +60,14 @@ setup() {
   local profile=$BATS_TEST_TMPDIR/profile
   make_profile_repo "$profile"
   write_config "$BATS_TEST_TMPDIR/c.toml" "$profile"
-  bivy init --config "$BATS_TEST_TMPDIR/c.toml"
-  bivy apply
-  cp "$HOME/.config/bivy/env.sh" "$BATS_TEST_TMPDIR/env.before"
+  povy init --config "$BATS_TEST_TMPDIR/c.toml"
+  povy apply
+  cp "$HOME/.config/povy/env.sh" "$BATS_TEST_TMPDIR/env.before"
   printf '#!/bin/sh\necho new command\n' >"$profile/bin/new-command"
   chmod +x "$profile/bin/new-command"
   commit_all "$profile"
-  bivy apply
-  cmp "$BATS_TEST_TMPDIR/env.before" "$HOME/.config/bivy/env.sh"
+  povy apply
+  cmp "$BATS_TEST_TMPDIR/env.before" "$HOME/.config/povy/env.sh"
   run env -i HOME="$HOME" PATH=/usr/bin:/bin bash -lc 'new-command'
   [ "$output" = "new command" ]
 }
@@ -76,10 +76,10 @@ setup() {
   local profile=$BATS_TEST_TMPDIR/bad body
   for body in 'bin = "../outside"' 'bin = "/usr/bin"' 'bin = "missing"' 'bin = "files/t"' \
     'shell = "files/t"' 'shell = ["missing.sh"]' 'shell = ["../outside.sh"]' 'shell = [3]'; do
-    rm -rf "$profile" "$HOME/.local/state/bivy/profile"
+    rm -rf "$profile" "$HOME/.local/state/povy/profile"
     make_custom_profile "$profile" "$body" "t=x"
     write_config "$BATS_TEST_TMPDIR/c.toml" "$profile"
-    run bivy init --config "$BATS_TEST_TMPDIR/c.toml"
+    run povy init --config "$BATS_TEST_TMPDIR/c.toml"
     [ "$status" -ne 0 ] || {
       echo "accepted: $body"
       return 1

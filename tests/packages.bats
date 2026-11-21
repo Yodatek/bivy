@@ -135,7 +135,7 @@ calls() {
     $'[packages]\nbrew = [1]' $'[packages]\nbrew = ["bad name"]'; do
     write_config "$config"
     printf '%s\n' "$body" >>"$config"
-    run bivy init --config "$config"
+    run povy init --config "$config"
     [ "$status" -ne 0 ] || {
       echo "accepted: $body"
       return 1
@@ -149,10 +149,10 @@ calls() {
   ! command -v dnf >/dev/null || skip "dnf is installed here"
   write_config "$config"
   printf '[packages]\nbrew = ["podman"]\ndnf = ["podman", "git"]\n' >>"$config"
-  bivy init --config "$config"
-  run bivy doctor
-  [[ "$output" == *"[FAIL] packages not installed: brew:podman; run: bivy apply"* ]]
+  povy init --config "$config"
+  run povy doctor
+  [[ "$output" == *"[FAIL] packages not installed: brew:podman; run: povy apply"* ]]
   echo podman >"$STATE/formula"
-  run bivy doctor
+  run povy doctor
   [[ "$output" == *"[ok]   packages: 1 installed with brew"* ]]
 }

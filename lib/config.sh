@@ -12,10 +12,10 @@ CFG_IDENTITIES=""
 CFG_PACKAGES=""
 CFG_BANNER=true
 CFG_PROMPT=""
-BIVY_STARSHIP_TOOL="starship@1.27.0"
+POVY_STARSHIP_TOOL="starship@1.27.0"
 
-BIVY_TOOL_NAME_RE='^[A-Za-z0-9@][A-Za-z0-9@._:/+-]*$'
-BIVY_TOOL_VERSION_RE='^[A-Za-z0-9][A-Za-z0-9._:+-]*$'
+POVY_TOOL_NAME_RE='^[A-Za-z0-9@][A-Za-z0-9@._:/+-]*$'
+POVY_TOOL_VERSION_RE='^[A-Za-z0-9][A-Za-z0-9._:+-]*$'
 
 valid_name() {
   [ -n "$1" ] && ! has_control_chars "$1"
@@ -46,14 +46,14 @@ profile_url_problem() {
 }
 
 # Prints "name<TAB>versions<TAB>level" for every tool, the last declaration of a
-# name winning: bivy itself, then the profile, then the machine. yq is declared
+# name winning: povy itself, then the profile, then the machine. yq is declared
 # because mise creates a shim for every installed tool, and a shim with no
 # configured version fails when called.
 tools_merged() {
   {
-    printf '%s\t%s\tbivy\n' "${BIVY_YQ_TOOL%@*}" "${BIVY_YQ_TOOL#*@}"
+    printf '%s\t%s\tpovy\n' "${POVY_YQ_TOOL%@*}" "${POVY_YQ_TOOL#*@}"
     if [ "$(prompt_choice)" = starship ]; then
-      printf '%s\t%s\tbivy\n' "${BIVY_STARSHIP_TOOL%@*}" "${BIVY_STARSHIP_TOOL#*@}"
+      printf '%s\t%s\tpovy\n' "${POVY_STARSHIP_TOOL%@*}" "${POVY_STARSHIP_TOOL#*@}"
     fi
     printf '%s\n' "$PROFILE_TOOLS" | awk -F'\t' 'NF == 2 { print $0 "\tprofile" }'
     printf '%s\n' "$CFG_TOOLS" | awk -F'\t' 'NF == 2 { print $0 "\tmachine" }'
@@ -74,14 +74,14 @@ toml_tools() {
   # The version comes last because it may be empty, and read merges empty fields.
   while IFS=$'\t' read -r name tag length versions; do
     [ -n "$name" ] || continue
-    [[ "$name" =~ $BIVY_TOOL_NAME_RE ]] || die "$file: invalid tool name: $name"
+    [[ "$name" =~ $POVY_TOOL_NAME_RE ]] || die "$file: invalid tool name: $name"
     if [ "$tag" != '!!seq' ]; then
-      [[ "$versions" =~ $BIVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
+      [[ "$versions" =~ $POVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
     else
       # read -a splits without expanding wildcards, which are checked below.
       IFS=' ' read -r -a list <<<"$versions"
       for version in ${list[@]+"${list[@]}"}; do
-        [[ "$version" =~ $BIVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
+        [[ "$version" =~ $POVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
       done
       # An element holding a space would split into several valid-looking words.
       count=${#list[@]}
@@ -189,53 +189,53 @@ config_read() {
 }
 
 config_load() {
-  [ -f "$BIVY_CONFIG_FILE" ] || die "$BIVY_CONFIG_FILE not found; run: bivy init"
-  config_read "$BIVY_CONFIG_FILE"
+  [ -f "$POVY_CONFIG_FILE" ] || die "$POVY_CONFIG_FILE not found; run: povy init"
+  config_read "$POVY_CONFIG_FILE"
 }
 
-BIVY_CONFIG_HEADER='# Machine configuration for bivy. Never versioned.'
+POVY_CONFIG_HEADER='# Machine configuration for povy. Never versioned.'
 
-# Rewrites the three answers of bivy init. The rest of an existing file, such as
+# Rewrites the three answers of povy init. The rest of an existing file, such as
 # [tools] or [[identities]], is kept as it is.
 config_write() {
   local name=$1 email=$2 profile=$3 tmp
-  tmp=$(mktemp "$BIVY_STATE_DIR/config.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
+  tmp=$(mktemp "$POVY_STATE_DIR/config.XXXXXX") || die "cannot write in $POVY_STATE_DIR"
   {
-    printf '%s\n' "$BIVY_CONFIG_HEADER"
+    printf '%s\n' "$POVY_CONFIG_HEADER"
     printf 'name = "%s"\n' "$(toml_escape "$name")"
     printf 'email = "%s"\n' "$(toml_escape "$email")"
     printf 'profile = "%s"\n' "$(toml_escape "$profile")"
-    if [ -f "$BIVY_CONFIG_FILE" ]; then
-      awk -v header="$BIVY_CONFIG_HEADER" '
+    if [ -f "$POVY_CONFIG_FILE" ]; then
+      awk -v header="$POVY_CONFIG_HEADER" '
         /^[[:space:]]*\[/ { tables = 1 }
         !tables && /^[[:space:]]*(name|email|profile)[[:space:]]*=/ { next }
         !tables && $0 == header { next }
         { print }
-      ' "$BIVY_CONFIG_FILE"
+      ' "$POVY_CONFIG_FILE"
     fi
   } >"$tmp"
   if ! (config_read "$tmp"); then
     rm -f "$tmp"
-    die "could not update $BIVY_CONFIG_FILE; fix it by hand or remove it"
+    die "could not update $POVY_CONFIG_FILE; fix it by hand or remove it"
   fi
-  install_file "$tmp" "$BIVY_CONFIG_FILE" 600
+  install_file "$tmp" "$POVY_CONFIG_FILE" 600
   rm -f "$tmp"
 }
 
 env_ensure() {
-  if [ ! -e "$BIVY_ENV_FILE" ]; then
-    (umask 077 && echo '# Secrets for bivy. Never versioned.' >"$BIVY_ENV_FILE") ||
-      die "cannot create $BIVY_ENV_FILE"
-    info "wrote $BIVY_ENV_FILE"
+  if [ ! -e "$POVY_ENV_FILE" ]; then
+    (umask 077 && echo '# Secrets for povy. Never versioned.' >"$POVY_ENV_FILE") ||
+      die "cannot create $POVY_ENV_FILE"
+    info "wrote $POVY_ENV_FILE"
   fi
-  chmod 600 "$BIVY_ENV_FILE"
+  chmod 600 "$POVY_ENV_FILE"
 }
 
 # Prints the value of a key, or returns 1 when the key has no line. The last line
 # wins, as it would in a shell. Surrounding quotes are removed, CRLF is tolerated.
 env_value() {
   local key=$1 line value found=1
-  [ -f "$BIVY_ENV_FILE" ] || return 1
+  [ -f "$POVY_ENV_FILE" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
     line=${line#"${line%%[![:space:]]*}"}
@@ -246,7 +246,7 @@ env_value() {
         found=0
         ;;
     esac
-  done <"$BIVY_ENV_FILE"
+  done <"$POVY_ENV_FILE"
   [ "$found" -eq 0 ] || return 1
   case "$value" in
     \"*\") value=${value#\"} && value=${value%\"} ;;
@@ -261,10 +261,10 @@ env_seed() {
   while IFS= read -r key; do
     [ -n "$key" ] || continue
     env_value "$key" >/dev/null && continue
-    if [ -s "$BIVY_ENV_FILE" ] && [ -n "$(tail -c 1 "$BIVY_ENV_FILE")" ]; then
-      echo >>"$BIVY_ENV_FILE"
+    if [ -s "$POVY_ENV_FILE" ] && [ -n "$(tail -c 1 "$POVY_ENV_FILE")" ]; then
+      echo >>"$POVY_ENV_FILE"
     fi
-    printf '%s=\n' "$key" >>"$BIVY_ENV_FILE"
+    printf '%s=\n' "$key" >>"$POVY_ENV_FILE"
   done <<<"$keys"
 }
 

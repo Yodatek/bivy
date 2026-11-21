@@ -11,35 +11,35 @@ while [ -L "$src" ]; do
     *) src="$dir/$src" ;;
   esac
 done
-BIVY_ROOT=$(cd -P "$(dirname "$src")/.." && pwd)
+POVY_ROOT=$(cd -P "$(dirname "$src")/.." && pwd)
 
 # shellcheck source=lib/common.sh
-. "$BIVY_ROOT/lib/common.sh"
+. "$POVY_ROOT/lib/common.sh"
 # shellcheck source=lib/config.sh
-. "$BIVY_ROOT/lib/config.sh"
+. "$POVY_ROOT/lib/config.sh"
 # shellcheck source=lib/profile.sh
-. "$BIVY_ROOT/lib/profile.sh"
+. "$POVY_ROOT/lib/profile.sh"
 # shellcheck source=lib/shell.sh
-. "$BIVY_ROOT/lib/shell.sh"
+. "$POVY_ROOT/lib/shell.sh"
 # shellcheck source=lib/gui.sh
-. "$BIVY_ROOT/lib/gui.sh"
+. "$POVY_ROOT/lib/gui.sh"
 # shellcheck source=lib/git.sh
-. "$BIVY_ROOT/lib/git.sh"
+. "$POVY_ROOT/lib/git.sh"
 # shellcheck source=lib/packages.sh
-. "$BIVY_ROOT/lib/packages.sh"
+. "$POVY_ROOT/lib/packages.sh"
 
 usage() {
   cat <<'EOF'
-Usage: bivy <command>
+Usage: povy <command>
 
 Commands:
-  init [--config <file>]   Write ~/.config/bivy/config.toml and .env
+  init [--config <file>]   Write ~/.config/povy/config.toml and .env
   apply                    Install tools, load shims, set the Git identity,
                            write profile files
   doctor                   Check the real state; exits 1 if something is wrong
   banner                   Show the tools, what does not work and the machine load
   tools                    List each tool, where it is declared and what mise runs
-  version                  Show the version of bivy
+  version                  Show the version of povy
   help                     Show this message
 EOF
 }
@@ -50,10 +50,10 @@ command=${1:-help}
 case "$command" in
   init | apply | doctor | banner | tools)
     # shellcheck source=/dev/null
-    . "$BIVY_ROOT/lib/cmd/$command.sh"
+    . "$POVY_ROOT/lib/cmd/$command.sh"
     "cmd_$command" "$@"
     ;;
-  version | -V | --version) printf 'bivy %s\n' "$(bivy_version)" ;;
+  version | -V | --version) printf 'povy %s\n' "$(povy_version)" ;;
   help | -h | --help) usage ;;
   *)
     usage >&2

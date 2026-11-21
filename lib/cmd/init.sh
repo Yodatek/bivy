@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# bivy init: writes config.toml and .env, then opens .env if the profile needs it.
+# povy init: writes config.toml and .env, then opens .env if the profile needs it.
 
 init_from_config() {
   local file=$1
@@ -9,17 +9,17 @@ init_from_config() {
     *) file="$PWD/$file" ;;
   esac
   config_read "$file"
-  if [ "$file" != "$BIVY_CONFIG_FILE" ]; then
-    install_file "$file" "$BIVY_CONFIG_FILE" 600
+  if [ "$file" != "$POVY_CONFIG_FILE" ]; then
+    install_file "$file" "$POVY_CONFIG_FILE" 600
   fi
-  chmod 600 "$BIVY_CONFIG_FILE"
+  chmod 600 "$POVY_CONFIG_FILE"
 }
 
 init_prompt() {
   local name="" email="" profile="" problem
-  tty_available || die "no terminal available; use: bivy init --config <file>"
-  if [ -f "$BIVY_CONFIG_FILE" ]; then
-    config_read "$BIVY_CONFIG_FILE"
+  tty_available || die "no terminal available; use: povy init --config <file>"
+  if [ -f "$POVY_CONFIG_FILE" ]; then
+    config_read "$POVY_CONFIG_FILE"
     name=$CFG_NAME
     email=$CFG_EMAIL
     profile=$CFG_PROFILE
@@ -58,9 +58,9 @@ init_edit_env() {
   local editor=${EDITOR:-${VISUAL:-vi}} tty
   tty=$(tty_path)
   # shellcheck disable=SC2016,SC2094
-  sh -c "$editor \"\$1\"" bivy-editor "$BIVY_ENV_FILE" <"$tty" >>"$tty" ||
+  sh -c "$editor \"\$1\"" povy-editor "$POVY_ENV_FILE" <"$tty" >>"$tty" ||
     warn "the editor exited with an error"
-  chmod 600 "$BIVY_ENV_FILE"
+  chmod 600 "$POVY_ENV_FILE"
 }
 
 cmd_init() {
@@ -77,10 +77,10 @@ cmd_init() {
     esac
   done
 
-  bivy_init_paths
-  bivy_load_os
+  povy_init_paths
+  povy_load_os
   os_preflight
-  bivy_ensure_dirs
+  povy_ensure_dirs
   yq_ensure
 
   if [ "$interactive" -eq 1 ]; then
@@ -97,13 +97,13 @@ cmd_init() {
 
   missing=$(env_missing "$PROFILE_SECRETS")
   if [ -n "$missing" ] && [ "$interactive" -eq 1 ]; then
-    info "The profile needs secrets; opening $BIVY_ENV_FILE"
+    info "The profile needs secrets; opening $POVY_ENV_FILE"
     init_edit_env
     missing=$(env_missing "$PROFILE_SECRETS")
   fi
   if [ -n "$missing" ]; then
-    warn "fill these secrets in $BIVY_ENV_FILE before bivy apply:"
+    warn "fill these secrets in $POVY_ENV_FILE before povy apply:"
     info "$missing"
   fi
-  info "Next: bivy apply"
+  info "Next: povy apply"
 }

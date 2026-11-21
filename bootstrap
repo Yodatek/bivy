@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Installs Git and mise if missing, clones the bivy engine, installs the command.
+# Installs Git and mise if missing, clones the povy engine, installs the command.
 #
-#   curl -fsSL https://raw.githubusercontent.com/Yodatek/bivy/main/bootstrap | bash
+#   curl -fsSL https://raw.githubusercontent.com/Yodatek/povy/main/bootstrap | bash
 #
 # Bash reads this script from stdin in that form, so answers come from /dev/tty and
 # child processes get /dev/null. All the code sits in functions and main runs on
 # the last line: a truncated download executes nothing.
 set -euo pipefail
 
-BIVY_REPO=${BIVY_REPO:-https://github.com/Yodatek/bivy.git}
-BIVY_BRANCH=${BIVY_BRANCH:-main}
+POVY_REPO=${POVY_REPO:-https://github.com/Yodatek/povy.git}
+POVY_BRANCH=${POVY_BRANCH:-main}
 
 info() { printf '%s\n' "$*" >&2; }
 die() {
@@ -18,12 +18,12 @@ die() {
 }
 
 # Kept identical to the copy in lib/common.sh; tests/bootstrap.bats compares them.
-bivy_detect_os() {
+povy_detect_os() {
   case "$(uname -s)" in
     Darwin) echo darwin ;;
     Linux)
-      if grep -qi microsoft "${BIVY_PROC_VERSION:-/proc/version}" 2>/dev/null; then
-        if grep -qiE 'wsl2|microsoft-standard' "${BIVY_PROC_VERSION:-/proc/version}"; then
+      if grep -qi microsoft "${POVY_PROC_VERSION:-/proc/version}" 2>/dev/null; then
+        if grep -qiE 'wsl2|microsoft-standard' "${POVY_PROC_VERSION:-/proc/version}"; then
           echo wsl
         else
           echo wsl1
@@ -37,7 +37,7 @@ bivy_detect_os() {
   esac
 }
 
-tty_path() { printf '%s' "${BIVY_TTY:-/dev/tty}"; }
+tty_path() { printf '%s' "${POVY_TTY:-/dev/tty}"; }
 
 tty_available() {
   (: <"$(tty_path)") 2>/dev/null
@@ -136,20 +136,20 @@ ensure_engine() {
   elif [ -e "$dir" ]; then
     die "$dir exists and is not a Git clone; move it away and run this again"
   else
-    info "Cloning bivy into $dir"
+    info "Cloning povy into $dir"
     mkdir -p "$(dirname "$dir")"
-    git clone --quiet --branch "$BIVY_BRANCH" -- "$BIVY_REPO" "$dir" </dev/null ||
-      die "could not clone $BIVY_REPO"
+    git clone --quiet --branch "$POVY_BRANCH" -- "$POVY_REPO" "$dir" </dev/null ||
+      die "could not clone $POVY_REPO"
   fi
 }
 
 install_command() {
-  local dir=$1 link="$HOME/.local/bin/bivy"
+  local dir=$1 link="$HOME/.local/bin/povy"
   mkdir -p "$HOME/.local/bin"
   if [ -e "$link" ] && [ ! -L "$link" ]; then
     die "$link exists and is not a symlink; move it away and run this again"
   fi
-  ln -sfn "$dir/bin/bivy" "$link"
+  ln -sfn "$dir/bin/povy" "$link"
   info "Installed $link"
 }
 
@@ -157,7 +157,7 @@ main() {
   local os dir bin config
   [ -n "${HOME:-}" ] && [ -d "$HOME" ] || die "HOME is not set to an existing directory"
 
-  os=$(bivy_detect_os)
+  os=$(povy_detect_os)
   case "$os" in
     darwin | linux | wsl) ;;
     windows) die "native Windows is not supported. Install WSL2 with 'wsl --install', then run this inside the Linux distribution." ;;
@@ -167,12 +167,12 @@ main() {
 
   ensure_prerequisites "$os"
   ensure_mise
-  dir="${XDG_DATA_HOME:-$HOME/.local/share}/bivy"
+  dir="${XDG_DATA_HOME:-$HOME/.local/share}/povy"
   ensure_engine "$dir"
   install_command "$dir"
 
-  bin="$HOME/.local/bin/bivy"
-  config="${XDG_CONFIG_HOME:-$HOME/.config}/bivy/config.toml"
+  bin="$HOME/.local/bin/povy"
+  config="${XDG_CONFIG_HOME:-$HOME/.config}/povy/config.toml"
   export PATH="$HOME/.local/bin:$PATH"
 
   if [ ! -f "$config" ] && tty_available && confirm "Configure this machine now? [Y/n]" y; then

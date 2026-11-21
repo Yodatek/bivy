@@ -1,4 +1,4 @@
-# A sample bivy profile that uses every key. Every key is optional: copy this
+# A sample povy profile that uses every key. Every key is optional: copy this
 # directory to a Git repository of your own and keep what you need.
 
 # Starts Starship in interactive zsh and bash; "none" leaves your prompt alone.
@@ -10,8 +10,8 @@ bin = "bin"
 # Files that each interactive zsh or bash sources once, for aliases and functions.
 shell = ["shell/aliases.sh"]
 
-# Secrets the profile needs. bivy init adds an empty line for each one to
-# ~/.config/bivy/.env, which you fill in. Templates read them as {{NAME}}.
+# Secrets the profile needs. povy init adds an empty line for each one to
+# ~/.config/povy/.env, which you fill in. Templates read them as {{NAME}}.
 [secrets]
 required = ["SAMPLE_API_TOKEN"]
 
@@ -33,7 +33,7 @@ dnf = ["tree"]       # Fedora, RHEL
 # {{email}}, {{home}}, and {{NAME}} for each required secret.
 [[files]]
 source = "files/sample.conf.tmpl"
-target = ".config/bivy-sample/sample.conf"
+target = ".config/povy-sample/sample.conf"
 
 # The look of the prompt.
 [[files]]

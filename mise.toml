@@ -1,4 +1,4 @@
-# Tools for working on bivy itself, not installed on end-user machines.
+# Tools for working on povy itself, not installed on end-user machines.
 [tools]
 actionlint = "1.7.12"
 bats = "1.14.0"
@@ -11,7 +11,7 @@ run = "bats tests"
 
 [tasks.lint]
 run = [
-  "shellcheck -x bootstrap bin/bivy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash .githooks/pre-push scripts/banner-image scripts/release",
+  "shellcheck -x bootstrap bin/povy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash .githooks/pre-push scripts/banner-image scripts/release",
   "shellcheck -s sh _samples/profile/bin/* _samples/profile/shell/*.sh",
   "actionlint",
 ]

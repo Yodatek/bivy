@@ -33,7 +33,7 @@ apply_shell() {
   command -v zsh >/dev/null || skip "zsh is not installed"
   printf "PROMPT='omz> '\n" >"$HOME/.zshrc"
   apply_shell
-  [ "$(tail -n 1 "$HOME/.zshrc")" = '# <<< bivy <<<' ]
+  [ "$(tail -n 1 "$HOME/.zshrc")" = '# <<< povy <<<' ]
   run env -i HOME="$HOME" PATH=/usr/bin:/bin TERM=xterm zsh -i -c 'print -r -- "$PROMPT"'
   [ "${lines[${#lines[@]} - 1]}" = 'starship> ' ]
 }
@@ -56,15 +56,15 @@ apply_shell() {
 @test "without a prompt choice, interactive.sh sets none" {
   CFG_PROMPT=""
   apply_shell
-  ! grep -q starship "$HOME/.config/bivy/interactive.sh"
+  ! grep -q starship "$HOME/.config/povy/interactive.sh"
 }
 
 @test ".bashrc keeps env at the top and gets a named interactive block at the bottom" {
   printf 'case $- in *i*) ;; *) return ;; esac\nalias ll="ls -l"\n' >"$HOME/.bashrc"
   apply_shell
-  [ "$(head -n 1 "$HOME/.bashrc")" = '# >>> bivy >>>' ]
-  [ "$(tail -n 1 "$HOME/.bashrc")" = '# <<< bivy interactive <<<' ]
-  [ "$(awk '/^# <<< bivy <<<$/ { exit } { print }' "$HOME/.bashrc" | grep -c interactive.sh)" -eq 0 ]
+  [ "$(head -n 1 "$HOME/.bashrc")" = '# >>> povy >>>' ]
+  [ "$(tail -n 1 "$HOME/.bashrc")" = '# <<< povy interactive <<<' ]
+  [ "$(awk '/^# <<< povy <<<$/ { exit } { print }' "$HOME/.bashrc" | grep -c interactive.sh)" -eq 0 ]
 }
 
 @test "the earlier layout moves: .zshrc to the end, .bashrc split in two" {
@@ -74,25 +74,25 @@ apply_shell() {
   shell_block_apply "$HOME/.zshrc" interactive top
   shell_block_apply "$HOME/.bashrc" "env interactive" top
   # A new run: same process and second here, so its backup directory is set apart.
-  BIVY_BACKUP_DIR=$BATS_TEST_TMPDIR/second-run
+  POVY_BACKUP_DIR=$BATS_TEST_TMPDIR/second-run
   apply_shell
   [ "$(head -n 1 "$HOME/.zshrc")" = 'export MINE=1' ]
-  [ "$(tail -n 1 "$HOME/.zshrc")" = '# <<< bivy <<<' ]
-  [ "$(grep -c '^# >>> bivy' "$HOME/.zshrc")" -eq 1 ]
-  [ "$(head -n 1 "$HOME/.bashrc")" = '# >>> bivy >>>' ]
-  [ "$(tail -n 1 "$HOME/.bashrc")" = '# <<< bivy interactive <<<' ]
+  [ "$(tail -n 1 "$HOME/.zshrc")" = '# <<< povy <<<' ]
+  [ "$(grep -c '^# >>> povy' "$HOME/.zshrc")" -eq 1 ]
+  [ "$(head -n 1 "$HOME/.bashrc")" = '# >>> povy >>>' ]
+  [ "$(tail -n 1 "$HOME/.bashrc")" = '# <<< povy interactive <<<' ]
   [ "$(grep -c 'interactive.sh' "$HOME/.bashrc")" -eq 1 ]
   grep -qxF 'export MINE=1' "$HOME/.bashrc"
   # .bashrc changed twice: its backup is the file as it was before, both parts in one block.
-  local backup=$BIVY_BACKUP_DIR/.bashrc
-  ! grep -q '# >>> bivy interactive >>>' "$backup"
+  local backup=$POVY_BACKUP_DIR/.bashrc
+  ! grep -q '# >>> povy interactive >>>' "$backup"
   grep -q 'interactive.sh' "$backup"
 }
 
 @test "starship joins the tools only when a prompt asks for it, and the machine wins" {
   PROFILE_PROMPT=starship
   CFG_PROMPT=""
-  [[ "$(tools_merged)" == *$'starship\t1.27.0\tbivy'* ]]
+  [[ "$(tools_merged)" == *$'starship\t1.27.0\tpovy'* ]]
   CFG_PROMPT=none
   [[ "$(tools_merged)" != *starship* ]]
 }
@@ -100,7 +100,7 @@ apply_shell() {
 @test "prompt must be starship or none" {
   write_config "$BATS_TEST_TMPDIR/c.toml"
   printf 'prompt = "fancy"\n' >>"$BATS_TEST_TMPDIR/c.toml"
-  run bivy init --config "$BATS_TEST_TMPDIR/c.toml"
+  run povy init --config "$BATS_TEST_TMPDIR/c.toml"
   [ "$status" -ne 0 ]
   [[ "$output" == *"prompt must be starship or none"* ]]
 }

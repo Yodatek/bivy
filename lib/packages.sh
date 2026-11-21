@@ -3,8 +3,8 @@
 # apt on Debian, Ubuntu and WSL2, dnf on Fedora and RHEL. Each list is used where its
 # manager exists, only missing packages are installed, and nothing is ever removed.
 
-BIVY_PACKAGE_MANAGERS="brew cask apt dnf"
-BIVY_PACKAGE_RE='^[A-Za-z0-9][A-Za-z0-9._+@/-]*$'
+POVY_PACKAGE_MANAGERS="brew cask apt dnf"
+POVY_PACKAGE_RE='^[A-Za-z0-9][A-Za-z0-9._+@/-]*$'
 
 # Prints "manager<TAB>name" lines for a [packages] table.
 toml_packages() {
@@ -12,9 +12,9 @@ toml_packages() {
   tag=$(toml_query "$file" '(.packages // {}) | tag') || die "$file is not valid TOML"
   [ "$tag" = '!!map' ] || die "$file: packages must be a table: [packages]"
   for manager in $(toml_query "$file" '(.packages // {}) | keys | .[]'); do
-    case " $BIVY_PACKAGE_MANAGERS " in
+    case " $POVY_PACKAGE_MANAGERS " in
       *" $manager "*) ;;
-      *) die "$file: unknown package manager: $manager (use $BIVY_PACKAGE_MANAGERS)" ;;
+      *) die "$file: unknown package manager: $manager (use $POVY_PACKAGE_MANAGERS)" ;;
     esac
     tag=$(toml_query "$file" ".packages.$manager | tag")
     [ "$tag" = '!!seq' ] || die "$file: packages.$manager must be a list"
@@ -23,7 +23,7 @@ toml_packages() {
     names=$(toml_query "$file" ".packages.${manager}[]")
     while IFS= read -r name; do
       [ -n "$name" ] || continue
-      [[ "$name" =~ $BIVY_PACKAGE_RE ]] || die "$file: invalid package name for $manager: $name"
+      [[ "$name" =~ $POVY_PACKAGE_RE ]] || die "$file: invalid package name for $manager: $name"
       printf '%s\t%s\n' "$manager" "$name"
     done <<<"$names"
   done
@@ -75,7 +75,7 @@ packages_missing() {
   local wanted=$1 manager names usable=0
   local -a list
   [ -n "$wanted" ] || return 0
-  for manager in $BIVY_PACKAGE_MANAGERS; do
+  for manager in $POVY_PACKAGE_MANAGERS; do
     names=$(printf '%s\n' "$wanted" | awk -F'\t' -v m="$manager" '$1 == m { print $2 }')
     [ -n "$names" ] || continue
     [ -n "$(packages_command "$manager")" ] || continue
@@ -120,13 +120,13 @@ packages_apply() {
   missing=$(packages_missing "$(packages_wanted)")
   [ -n "$missing" ] || return 0
   names=$(printf '%s\n' "$missing" | awk -F'\t' '$1 == "none" { print $2 }' | tr '\n' ' ')
-  [ -z "$names" ] || warn "no package manager here for: $names(use $BIVY_PACKAGE_MANAGERS)"
-  for manager in $BIVY_PACKAGE_MANAGERS; do
+  [ -z "$names" ] || warn "no package manager here for: $names(use $POVY_PACKAGE_MANAGERS)"
+  for manager in $POVY_PACKAGE_MANAGERS; do
     names=$(printf '%s\n' "$missing" | awk -F'\t' -v m="$manager" '$1 == m { print $2 }')
     [ -n "$names" ] || continue
     IFS=$'\n' read -r -d '' -a list <<<"$names" || true
     info "installing with $manager: ${list[*]}"
     packages_install "$manager" "${list[@]}" ||
-      warn "could not install with $manager: ${list[*]}; install them yourself, then run: bivy doctor"
+      warn "could not install with $manager: ${list[*]}; install them yourself, then run: povy doctor"
   done
 }

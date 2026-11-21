@@ -1,5 +1,5 @@
 name: Feature request
-description: Something bivy could do.
+description: Something povy could do.
 labels: [enhancement]
 body:
   - type: markdown
@@ -16,4 +16,4 @@ body:
     id: proposal
     attributes:
       label: Proposal
-      description: How bivy could help, such as a command or a key in profile.toml or config.toml.
+      description: How povy could help, such as a command or a key in profile.toml or config.toml.

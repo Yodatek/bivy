@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# bivy tools: every tool bivy declares, the level that declares it, and what mise
+# povy tools: every tool povy declares, the level that declares it, and what mise
 # actually runs. The tools that only the user's own mise config sets come last.
 
 # Prints "tool<TAB>requested<TAB>version<TAB>installed<TAB>config file" for what mise
@@ -9,7 +9,7 @@ tools_active() {
   local rows real
   # shellcheck disable=SC2016 # A yq expression, not shell.
   rows=$(mise_run ls --current --json 2>/dev/null |
-    "$BIVY_YQ" -p json -o tsv \
+    "$POVY_YQ" -p json -o tsv \
       'to_entries | .[] | .key as $tool | .value[] | [$tool, .requested_version, .version, (.installed | tostring), .source.path]') ||
     return 1
   real=$(cd -P "$HOME" && pwd) || real=$HOME
@@ -29,15 +29,15 @@ tools_active() {
 }
 
 # The versions mise runs for one declared tool, in the declared order. Another
-# config file than bivy's wins over it, and says so.
+# config file than povy's wins over it, and says so.
 tools_state() {
   local name=$1 versions=$2 active=$3 rows source version found out=""
   rows=$(printf '%s\n' "$active" | awk -F'\t' -v t="$name" '$1 == t')
   if [ -z "$rows" ]; then
-    printf 'not applied; run: bivy apply'
+    printf 'not applied; run: povy apply'
     return 0
   fi
-  source=$(printf '%s\n' "$rows" | awk -F'\t' -v c="$BIVY_MISE_CONF" '$5 != c { print $5; exit }')
+  source=$(printf '%s\n' "$rows" | awk -F'\t' -v c="$POVY_MISE_CONF" '$5 != c { print $5; exit }')
   if [ -n "$source" ]; then
     printf '%s, set by %s' \
       "$(printf '%s\n' "$rows" | awk -F'\t' -v s="$source" '$5 == s { print $3 }' | tools_short_list)" \
@@ -47,9 +47,9 @@ tools_state() {
   for version in $versions; do
     found=$(printf '%s\n' "$rows" | awk -F'\t' -v v="$version" '$2 == v { print $3 "\t" $4; exit }')
     case "$found" in
-      '') out="$out${out:+, }$version not applied; run: bivy apply" ;;
+      '') out="$out${out:+, }$version not applied; run: povy apply" ;;
       *$'\t'true) out="$out${out:+, }$(short_version "${found%%$'\t'*}")" ;;
-      *) out="$out${out:+, }$(short_version "${found%%$'\t'*}") not installed; run: bivy apply" ;;
+      *) out="$out${out:+, }$(short_version "${found%%$'\t'*}") not installed; run: povy apply" ;;
     esac
   done
   printf '%s' "$out"
@@ -82,15 +82,15 @@ cmd_tools() {
   local merged active name versions level resolved source
   [ $# -eq 0 ] || die "tools takes no argument"
 
-  bivy_init_paths
-  bivy_load_os
-  mise_find >/dev/null || die "mise is not installed; run the bivy bootstrap first"
-  yq_resolve || die "$BIVY_YQ_TOOL is not installed; run: bivy init"
+  povy_init_paths
+  povy_load_os
+  mise_find >/dev/null || die "mise is not installed; run the povy bootstrap first"
+  yq_resolve || die "$POVY_YQ_TOOL is not installed; run: povy init"
   config_load
   if (profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH") 2>/dev/null; then
     profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH"
   else
-    warn "the profile is not cloned yet; run: bivy apply"
+    warn "the profile is not cloned yet; run: povy apply"
   fi
 
   merged=$(tools_merged)
@@ -118,5 +118,5 @@ cmd_tools() {
           "$(printf '%s\n' "$resolved" | tr ' ' '\n' | tools_short_list)" "$(tilde_path "$source")"
       done
   } | tools_table
-  printf '\nbivy apply merges the bivy, profile and machine levels into %s.\n' "$(tilde_path "$BIVY_MISE_CONF")"
+  printf '\npovy apply merges the povy, profile and machine levels into %s.\n' "$(tilde_path "$POVY_MISE_CONF")"
 }

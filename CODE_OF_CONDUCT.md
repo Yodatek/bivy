@@ -2,7 +2,7 @@
 
 ## Our pledge
 
-We want taking part in bivy to be free of harassment for everyone, whatever their age,
+We want taking part in povy to be free of harassment for everyone, whatever their age,
 body, visible or invisible disability, ethnicity, sex characteristics, gender identity
 and expression, level of experience, education, social or economic status, nationality,
 appearance, race, caste, color, religion, or sexual identity and orientation.
@@ -38,7 +38,7 @@ discussions and reviews, and when someone officially represents the project else
 ## Reporting
 
 Report unacceptable behavior privately to the maintainers through
-[GitHub's private reporting form](https://github.com/Yodatek/bivy/security/advisories/new),
+[GitHub's private reporting form](https://github.com/Yodatek/povy/security/advisories/new),
 and start the title with "Conduct". Every report is reviewed promptly and fairly, and the
 maintainers keep the reporter's identity private.
 

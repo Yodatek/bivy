@@ -38,20 +38,20 @@ global_email() {
   git config --global --includes --get user.email
 }
 
-# Prints the file without the bivy block.
+# Prints the file without the povy block.
 outside_block() {
-  awk '$0 == "# >>> bivy >>>" { on = 1 } !on { print } $0 == "# <<< bivy <<<" { on = 0 }' "$1"
+  awk '$0 == "# >>> povy >>>" { on = 1 } !on { print } $0 == "# <<< povy <<<" { on = 0 }' "$1"
 }
 
 @test "the block goes on top of ~/.gitconfig, whose content stays byte for byte" {
   printf '[core]\n\teditor = vi\n[alias]\n\tst = status' >"$HOME/.gitconfig"
   cp "$HOME/.gitconfig" "$BATS_TEST_TMPDIR/before"
   apply_git
-  [ "$(head -n 1 "$HOME/.gitconfig")" = '# >>> bivy >>>' ]
+  [ "$(head -n 1 "$HOME/.gitconfig")" = '# >>> povy >>>' ]
   outside_block "$HOME/.gitconfig" >"$BATS_TEST_TMPDIR/after"
   printf '\n' >>"$BATS_TEST_TMPDIR/before"
   cmp "$BATS_TEST_TMPDIR/before" "$BATS_TEST_TMPDIR/after"
-  grep -qxF $'\tpath = ~/.config/bivy/git/config' "$HOME/.gitconfig"
+  grep -qxF $'\tpath = ~/.config/povy/git/config' "$HOME/.gitconfig"
   [ "$(global_email)" = test@example.org ]
   [ "$(git config --global --includes --get user.name)" = "Test User" ]
 }
@@ -64,7 +64,7 @@ outside_block() {
   [ "$(git -C "$HOME/perso/tool" config user.email)" = me@users.noreply.example.org ]
   [ "$(git -C "$HOME/perso/tool" config user.name)" = "Test User" ]
   [ "$(git -C "$HOME/work/app" config user.email)" = test@example.org ]
-  grep -qF '[includeIf "gitdir:~/perso/"]' "$HOME/.config/bivy/git/config"
+  grep -qF '[includeIf "gitdir:~/perso/"]' "$HOME/.config/povy/git/config"
 }
 
 @test "names and directories with quotes and spaces reach Git as written" {
@@ -87,7 +87,7 @@ outside_block() {
 @test "an absolute directory that does not exist yet is written as given" {
   add_identity "$BATS_TEST_TMPDIR/elsewhere" "abs@example.org"
   apply_git
-  grep -qF "gitdir:$BATS_TEST_TMPDIR/elsewhere/" "$HOME/.config/bivy/git/config"
+  grep -qF "gitdir:$BATS_TEST_TMPDIR/elsewhere/" "$HOME/.config/povy/git/config"
 }
 
 @test "an absolute directory works too" {
@@ -104,11 +104,11 @@ outside_block() {
   apply_git
   local before
   before=$(home_fingerprint)
-  BIVY_WRITTEN=0
-  BIVY_BACKED_UP=0
+  POVY_WRITTEN=0
+  POVY_BACKED_UP=0
   apply_git
-  [ "$BIVY_WRITTEN" -eq 0 ]
-  [ "$BIVY_BACKED_UP" -eq 0 ]
+  [ "$POVY_WRITTEN" -eq 0 ]
+  [ "$POVY_BACKED_UP" -eq 0 ]
   [ "$before" = "$(home_fingerprint)" ]
 }
 
@@ -116,7 +116,7 @@ outside_block() {
   echo '[core]' >"$HOME/.gitconfig"
   apply_git
   local found
-  found=$(find "$HOME/.local/state/bivy/backups" -name .gitconfig)
+  found=$(find "$HOME/.local/state/povy/backups" -name .gitconfig)
   [ "$(cat "$found")" = '[core]' ]
 }
 
@@ -124,12 +124,12 @@ outside_block() {
   add_identity "~/a/" "a@example.org"
   add_identity "~/b/" "b@example.org"
   apply_git
-  [ -f "$HOME/.config/bivy/git/identity-2" ]
+  [ -f "$HOME/.config/povy/git/identity-2" ]
   write_config "$CONFIG"
   add_identity "~/a/" "a@example.org"
   apply_git
-  [ ! -e "$HOME/.config/bivy/git/identity-2" ]
-  ! grep -qF 'gitdir:~/b/' "$HOME/.config/bivy/git/config"
+  [ ! -e "$HOME/.config/povy/git/identity-2" ]
+  ! grep -qF 'gitdir:~/b/' "$HOME/.config/povy/git/config"
 }
 
 @test "a [user] after the block is reported with its file, an included one too" {
@@ -158,7 +158,7 @@ outside_block() {
   echo '[core]' >"$HOME/.config/git/config"
   apply_git
   [ ! -e "$HOME/.gitconfig" ]
-  [ "$(head -n 1 "$HOME/.config/git/config")" = '# >>> bivy >>>' ]
+  [ "$(head -n 1 "$HOME/.config/git/config")" = '# >>> povy >>>' ]
   [ "$(global_email)" = test@example.org ]
 }
 
@@ -168,7 +168,7 @@ outside_block() {
   ln -s dotfiles/gitconfig "$HOME/.gitconfig"
   apply_git
   [ -L "$HOME/.gitconfig" ]
-  [ "$(head -n 1 "$HOME/dotfiles/gitconfig")" = '# >>> bivy >>>' ]
+  [ "$(head -n 1 "$HOME/dotfiles/gitconfig")" = '# >>> povy >>>' ]
 }
 
 @test "invalid identities are refused by init, which writes nothing" {
@@ -184,12 +184,12 @@ outside_block() {
     'identities = ["~/a/"]'; do
     write_config "$CONFIG"
     printf '%s\n' "$body" >>"$CONFIG"
-    run bivy init --config "$CONFIG"
+    run povy init --config "$CONFIG"
     [ "$status" -ne 0 ] || {
       echo "accepted: $body"
       return 1
     }
     [[ "$output" == *identities* ]]
-    [ ! -e "$HOME/.config/bivy/config.toml" ]
+    [ ! -e "$HOME/.config/povy/config.toml" ]
   done
 }

@@ -2,7 +2,7 @@
 # WSL2 adapter: Linux, plus the traps of sharing a machine with Windows.
 
 # shellcheck source=lib/os/linux.sh
-. "$BIVY_ROOT/lib/os/linux.sh"
+. "$POVY_ROOT/lib/os/linux.sh"
 
 # chmod has no effect on a Windows drive by default, so secrets could not be
 # protected there.

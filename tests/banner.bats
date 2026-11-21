@@ -10,9 +10,9 @@ setup_file() {
   export MISE_CACHE_DIR="$BATS_SUITE_TMPDIR/mise-cache"
   make_profile_repo "$BATS_FILE_TMPDIR/profile"
   write_config "$BATS_FILE_TMPDIR/config.toml" "$BATS_FILE_TMPDIR/profile"
-  bivy init --config "$BATS_FILE_TMPDIR/config.toml"
-  echo 'EXAMPLE_API_TOKEN=x' >>"$HOME/.config/bivy/.env"
-  bivy apply
+  povy init --config "$BATS_FILE_TMPDIR/config.toml"
+  echo 'EXAMPLE_API_TOKEN=x' >>"$HOME/.config/povy/.env"
+  povy apply
 }
 
 # The dates matter: the banner compares config.toml and .env with the last apply.
@@ -20,20 +20,20 @@ setup() {
   sandbox_setup
   cp -Rp "$BATS_FILE_TMPDIR/seed/." "$HOME/"
   SHIMS=$MISE_DATA_DIR/shims
-  printf '%s\n' "$SHIMS:/usr/bin:/bin" >"${BIVY_LAUNCHCTL%/*}/PATH"
+  printf '%s\n' "$SHIMS:/usr/bin:/bin" >"${POVY_LAUNCHCTL%/*}/PATH"
   cd "$HOME"
 }
 
 # Runs the banner with the PATH that the startup files give a terminal.
 banner() {
-  PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner "$@"
+  PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner "$@"
 }
 
 @test "a healthy machine: who and where, its load, its tools, all good" {
   run banner
   echo "$output"
   [ "$status" -eq 0 ]
-  [[ "${lines[0]}" == *bivy*"$(id -un)@"*"profile profile"* ]]
+  [[ "${lines[0]}" == *povy*"$(id -un)@"*"profile profile"* ]]
   [[ "${lines[1]}" == *"cpu "*"%"* ]]
   [[ "${lines[1]}" == *"ram "*"%"*G* ]]
   [[ "${lines[1]}" == *"disk "*"%"*G* ]]
@@ -52,26 +52,26 @@ banner() {
 }
 
 @test "each problem gets a line, and doctor is suggested" {
-  sed -i.bak 's/^EXAMPLE_API_TOKEN=x$/EXAMPLE_API_TOKEN=/' "$HOME/.config/bivy/.env"
-  chmod 644 "$HOME/.config/bivy/.env"
-  touch -t 203001010000 "$HOME/.config/bivy/config.toml"
-  rm "$HOME/.config/bivy-example/example.conf"
+  sed -i.bak 's/^EXAMPLE_API_TOKEN=x$/EXAMPLE_API_TOKEN=/' "$HOME/.config/povy/.env"
+  chmod 644 "$HOME/.config/povy/.env"
+  touch -t 203001010000 "$HOME/.config/povy/config.toml"
+  rm "$HOME/.config/povy-example/example.conf"
   printf '[user]\n\temail = old@example.org\n' >>"$HOME/.gitconfig"
   run banner
   echo "$output"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"empty secrets in ~/.config/bivy/.env: EXAMPLE_API_TOKEN"* ]]
-  [[ "$output" == *"~/.config/bivy/.env has mode 644, expected 600"* ]]
-  [[ "$output" == *"config.toml changed since the last bivy apply"* ]]
-  [[ "$output" == *".env changed since the last bivy apply"* ]]
-  [[ "$output" == *"~/.config/bivy-example/example.conf is missing"* ]]
+  [[ "$output" == *"empty secrets in ~/.config/povy/.env: EXAMPLE_API_TOKEN"* ]]
+  [[ "$output" == *"~/.config/povy/.env has mode 644, expected 600"* ]]
+  [[ "$output" == *"config.toml changed since the last povy apply"* ]]
+  [[ "$output" == *".env changed since the last povy apply"* ]]
+  [[ "$output" == *"~/.config/povy-example/example.conf is missing"* ]]
   [[ "$output" == *"overrides it in: $HOME/.gitconfig"* ]]
-  [[ "$output" == *"bivy doctor tells more"* ]]
+  [[ "$output" == *"povy doctor tells more"* ]]
   [[ "$output" != *"all good"* ]]
 }
 
 @test "a shell without the shims on its PATH is reported" {
-  run "$BIVY_ROOT/bin/bivy" banner
+  run "$POVY_ROOT/bin/povy" banner
   echo "$output"
   [[ "$output" == *"shims are not on the PATH of this shell"* ]]
 }
@@ -80,7 +80,7 @@ banner() {
   mkdir -p "$HOME/fakebin"
   printf '#!/bin/sh\necho fake\n' >"$HOME/fakebin/jq"
   chmod +x "$HOME/fakebin/jq"
-  run env PATH="$HOME/fakebin:$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  run env PATH="$HOME/fakebin:$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
   echo "$output"
   [[ "$output" == *"~/fakebin hides jq before the mise shims"* ]]
 }
@@ -90,44 +90,44 @@ banner() {
   run banner
   echo "$output"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"not installed: jq@1.6; run: bivy apply"* ]]
+  [[ "$output" == *"not installed: jq@1.6; run: povy apply"* ]]
 }
 
 @test "before the first apply, the banner says so" {
-  rm "$HOME/.local/state/bivy/applied"
+  rm "$HOME/.local/state/povy/applied"
   run banner
   echo "$output"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"bivy apply has not run yet"* ]]
+  [[ "$output" == *"povy apply has not run yet"* ]]
 }
 
 @test "macOS: graphical apps without the shims are reported" {
   [ "$(uname -s)" = Darwin ] || skip "macOS only"
-  rm "${BIVY_LAUNCHCTL%/*}/PATH"
+  rm "${POVY_LAUNCHCTL%/*}/PATH"
   run banner
   echo "$output"
   [[ "$output" == *"graphical apps do not see the shims"* ]]
 }
 
-@test "--auto keeps quiet in IDEs and agents, and BIVY_BANNER decides" {
+@test "--auto keeps quiet in IDEs and agents, and POVY_BANNER decides" {
   local quiet
   for quiet in TERM_PROGRAM=vscode TERM_PROGRAM=zed TERMINAL_EMULATOR=JetBrains-JediTerm \
-    CLAUDECODE=1 INSIDE_EMACS=29.1 TERM=dumb BIVY_BANNER=0; do
-    run env "$quiet" PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner --auto
+    CLAUDECODE=1 INSIDE_EMACS=29.1 TERM=dumb POVY_BANNER=0; do
+    run env "$quiet" PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner --auto
     [ "$status" -eq 0 ]
     [ -z "$output" ] || {
       echo "not quiet with $quiet"
       return 1
     }
   done
-  run env TERM_PROGRAM=vscode BIVY_BANNER=1 PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner --auto
+  run env TERM_PROGRAM=vscode POVY_BANNER=1 PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner --auto
   [[ "$output" == *"all good"* ]]
   TERM=xterm-256color run banner --auto
   [[ "$output" == *"all good"* ]]
 }
 
 @test "the startup files show nothing in a shell that is not interactive or not in a terminal" {
-  local interactive=$HOME/.config/bivy/interactive.sh
+  local interactive=$HOME/.config/povy/interactive.sh
   run bash -c ". '$interactive'"
   [ -z "$output" ]
   run bash -c "bash -i -c '. \"$interactive\"' 2>/dev/null | cat"
@@ -151,9 +151,9 @@ banner() {
 @test "banner = false in config.toml keeps the startup files quiet" {
   cp "$BATS_FILE_TMPDIR/config.toml" "$BATS_TEST_TMPDIR/c.toml"
   printf 'banner = false\n' >>"$BATS_TEST_TMPDIR/c.toml"
-  bivy init --config "$BATS_TEST_TMPDIR/c.toml"
-  bivy apply
-  ! grep -q 'banner --auto' "$HOME/.config/bivy/interactive.sh"
+  povy init --config "$BATS_TEST_TMPDIR/c.toml"
+  povy apply
+  ! grep -q 'banner --auto' "$HOME/.config/povy/interactive.sh"
   run banner
   echo "$output"
   [[ "$output" == *"all good"* ]]
@@ -162,7 +162,7 @@ banner() {
 @test "banner must be true or false" {
   write_config "$BATS_TEST_TMPDIR/c.toml"
   printf 'banner = "no"\n' >>"$BATS_TEST_TMPDIR/c.toml"
-  run bivy init --config "$BATS_TEST_TMPDIR/c.toml"
+  run povy init --config "$BATS_TEST_TMPDIR/c.toml"
   [ "$status" -ne 0 ]
   [[ "$output" == *"banner must be true or false"* ]]
 }
@@ -176,7 +176,7 @@ wide_banner() {
   local loc
   loc=$(utf8_locale)
   [ -n "$loc" ] || skip "no UTF-8 locale"
-  run env COLUMNS=100 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner "$@"
+  run env COLUMNS=100 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner "$@"
   echo "$output"
 }
 
@@ -184,7 +184,7 @@ wide_banner() {
   wide_banner
   [ "$status" -eq 0 ]
   [[ "${lines[0]}" == "  ╭"*"╮" ]]
-  [[ "$output" == *"██████╗ ██╗██╗   ██╗██╗   ██╗"* ]]
+  [[ "$output" == *"██████╗  ██████╗ ██╗   ██╗██╗   ██╗"* ]]
   [[ "$output" == *"╭─ system"* && "$output" == *"├─ tools"* ]]
   [[ "${lines[${#lines[@]} - 1]}" == "  ╰─ ✓ all good"* ]]
   [[ "$output" != *"health"* ]]
@@ -203,7 +203,7 @@ wide_banner() {
   loc=$(utf8_locale)
   [ -n "$loc" ] || skip "no UTF-8 locale"
   host=$(printf 'h%.0s' $(seq 1 90))
-  run env HOSTNAME="$host" COLUMNS=100 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  run env HOSTNAME="$host" COLUMNS=100 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
   echo "$output"
   [[ "$output" == *"hhh…"* ]]
   width=$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "${lines[0]}")
@@ -215,28 +215,28 @@ wide_banner() {
 }
 
 @test "in the framed banner, a problem opens the health section" {
-  rm "$HOME/.config/bivy-example/example.conf"
+  rm "$HOME/.config/povy-example/example.conf"
   wide_banner
   [[ "$output" == *"├─ health"* ]]
-  [[ "$output" == *"│  ✗ ~/.config/bivy-example/example.conf is missing; run: bivy apply"* ]]
-  [[ "${lines[${#lines[@]} - 1]}" == "  ╰─ bivy doctor tells more" ]]
+  [[ "$output" == *"│  ✗ ~/.config/povy-example/example.conf is missing; run: povy apply"* ]]
+  [[ "${lines[${#lines[@]} - 1]}" == "  ╰─ povy doctor tells more" ]]
 }
 
 @test "a narrow terminal or a locale without UTF-8 gets the compact banner" {
   local loc
   loc=$(utf8_locale)
   [ -n "$loc" ] || skip "no UTF-8 locale"
-  run env COLUMNS=70 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  run env COLUMNS=70 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
   [[ "$output" != *"╭"* ]]
   [[ "$output" == *"all good"* ]]
-  run env COLUMNS=100 LANG=C LC_ALL=C PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  run env COLUMNS=100 LANG=C LC_ALL=C PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
   [[ "$output" != *"╭"* ]]
   [[ "$output" == *"all good"* ]]
 }
 
 @test "CLICOLOR_FORCE colours the banner outside a terminal, and NO_COLOR wins" {
-  run env CLICOLOR_FORCE=1 PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  run env CLICOLOR_FORCE=1 PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
   [[ "$output" == *$'\033['* ]]
-  run env CLICOLOR_FORCE=1 NO_COLOR=1 PATH="$SHIMS:$PATH" "$BIVY_ROOT/bin/bivy" banner
+  run env CLICOLOR_FORCE=1 NO_COLOR=1 PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
   [[ "$output" != *$'\033['* ]]
 }

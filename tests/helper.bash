@@ -1,17 +1,17 @@
 # shellcheck shell=bash
-# Every test runs with HOME in a temporary directory. BIVY_TTY never points at the
-# real terminal, BIVY_LAUNCHCTL never at the real launchctl, and bivy refuses to
+# Every test runs with HOME in a temporary directory. POVY_TTY never points at the
+# real terminal, POVY_LAUNCHCTL never at the real launchctl, and povy refuses to
 # run from here if HOME was not redirected.
 
-BIVY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+POVY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 REAL_HOME=${REAL_HOME:-$HOME}
-export BIVY_ROOT REAL_HOME
+export POVY_ROOT REAL_HOME
 
 sandbox_env() {
   local var
-  for var in $(compgen -e | grep -E '^(MISE|XDG|BIVY)_'); do
+  for var in $(compgen -e | grep -E '^(MISE|XDG|POVY)_'); do
     case "$var" in
-      BIVY_ROOT) ;;
+      POVY_ROOT) ;;
       *) unset "$var" ;;
     esac
   done
@@ -19,7 +19,7 @@ sandbox_env() {
   # The banner keeps quiet in IDEs and agents, the test runner included.
   unset CLAUDECODE INSIDE_EMACS TERM_PROGRAM TERMINAL_EMULATOR NO_COLOR
   export HOME=$1
-  export BIVY_TTY=/nonexistent/tty
+  export POVY_TTY=/nonexistent/tty
   export SHELL=/bin/sh
   mkdir -p "$HOME"
   stub_launchctl "${1%/*}/launchctl"
@@ -41,7 +41,7 @@ case "$1 $2" in
 esac
 STUB
   chmod +x "$dir/launchctl"
-  export BIVY_LAUNCHCTL="$dir/launchctl"
+  export POVY_LAUNCHCTL="$dir/launchctl"
 }
 
 # Shares downloads between tests, which keeps fresh homes fast.
@@ -51,32 +51,32 @@ sandbox_setup() {
   export MISE_CACHE_DIR="$BATS_SUITE_TMPDIR/mise-cache"
 }
 
-bivy() {
+povy() {
   [ "$HOME" != "$REAL_HOME" ] || {
     echo "HOME is the real home, refusing to run" >&2
     return 99
   }
-  "$BIVY_ROOT/bin/bivy" "$@"
+  "$POVY_ROOT/bin/povy" "$@"
 }
 
 load_libs() {
   # shellcheck source=lib/common.sh
-  . "$BIVY_ROOT/lib/common.sh"
+  . "$POVY_ROOT/lib/common.sh"
   # shellcheck source=lib/config.sh
-  . "$BIVY_ROOT/lib/config.sh"
+  . "$POVY_ROOT/lib/config.sh"
   # shellcheck source=lib/profile.sh
-  . "$BIVY_ROOT/lib/profile.sh"
+  . "$POVY_ROOT/lib/profile.sh"
   # shellcheck source=lib/shell.sh
-  . "$BIVY_ROOT/lib/shell.sh"
+  . "$POVY_ROOT/lib/shell.sh"
   # shellcheck source=lib/gui.sh
-  . "$BIVY_ROOT/lib/gui.sh"
+  . "$POVY_ROOT/lib/gui.sh"
   # shellcheck source=lib/git.sh
-  . "$BIVY_ROOT/lib/git.sh"
+  . "$POVY_ROOT/lib/git.sh"
   # shellcheck source=lib/packages.sh
-  . "$BIVY_ROOT/lib/packages.sh"
-  bivy_init_paths
-  bivy_load_os
-  bivy_ensure_dirs
+  . "$POVY_ROOT/lib/packages.sh"
+  povy_init_paths
+  povy_load_os
+  povy_ensure_dirs
 }
 
 write_config() {
@@ -90,7 +90,7 @@ TOML
 
 # Turns the test profile, or the given directory, into a Git repository.
 make_profile_repo() {
-  local dest=$1 from=${2:-$BIVY_ROOT/tests/fixtures/profile}
+  local dest=$1 from=${2:-$POVY_ROOT/tests/fixtures/profile}
   mkdir -p "$dest"
   cp -R "$from/." "$dest/"
   commit_all "$dest"
@@ -123,7 +123,7 @@ file_mode() {
   esac
 }
 
-# Hash of everything bivy owns in the home; tool installs are left out.
+# Hash of everything povy owns in the home; tool installs are left out.
 home_fingerprint() {
   (
     cd "$HOME" &&

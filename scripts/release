@@ -43,7 +43,7 @@ release_tag() {
     die "main differs from origin/main; push or pull first"
   ! git -C "$root" rev-parse --quiet --verify "refs/tags/$tag" >/dev/null || die "$tag already exists"
   notes=$(release_notes "$tag")
-  printf 'bivy %s\n\n%s\n' "${tag#v}" "$notes" | git -C "$root" tag --annotate --cleanup=whitespace --file - "$tag"
+  printf 'povy %s\n\n%s\n' "${tag#v}" "$notes" | git -C "$root" tag --annotate --cleanup=whitespace --file - "$tag"
   printf 'Created %s. Publish it with: git push origin %s\n' "$tag" "$tag"
 }
 

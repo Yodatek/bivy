@@ -1,4 +1,4 @@
-# Contributing to bivy
+# Contributing to povy
 
 Bug reports, fixes and ideas are welcome. For anything larger than a fix, open an issue
 first, so that we agree on the change before you write it.
@@ -14,7 +14,7 @@ security issues privately, as [SECURITY.md](SECURITY.md) explains, never in a pu
 - Code, comments, messages and documentation are in English.
 - The code runs on bash 3.2, the version macOS ships, and on the GNU and BSD tools of
   Linux and macOS.
-- bivy keeps the real `HOME` and changes the user's files only inside its marked blocks
+- povy keeps the real `HOME` and changes the user's files only inside its marked blocks
   or after a backup.
 
 ## Set up
@@ -79,4 +79,4 @@ the changelog section as its notes.
 
 ## License
 
-Contributions are released under the [MIT License](LICENSE), like the rest of bivy.
+Contributions are released under the [MIT License](LICENSE), like the rest of povy.

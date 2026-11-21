@@ -1,5 +1,5 @@
 name: Bug report
-description: Something bivy does wrong.
+description: Something povy does wrong.
 labels: [bug]
 body:
   - type: textarea
@@ -12,14 +12,14 @@ body:
   - type: textarea
     id: doctor
     attributes:
-      label: bivy doctor
-      description: The output of `bivy doctor`. Remove anything private, such as host names, paths or URLs.
+      label: povy doctor
+      description: The output of `povy doctor`. Remove anything private, such as host names, paths or URLs.
       render: text
   - type: input
     id: version
     attributes:
       label: Version
-      description: The output of `bivy --version`.
+      description: The output of `povy --version`.
     validations:
       required: true
   - type: dropdown

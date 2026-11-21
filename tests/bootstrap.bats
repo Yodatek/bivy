@@ -17,14 +17,14 @@ stub_uname() {
 engine_repo() {
   ENGINE=$BATS_TEST_TMPDIR/engine
   mkdir -p "$ENGINE"
-  (cd "$BIVY_ROOT" && tar --exclude=.git -cf - .) | tar -xf - -C "$ENGINE"
+  (cd "$POVY_ROOT" && tar --exclude=.git -cf - .) | tar -xf - -C "$ENGINE"
   commit_all "$ENGINE"
-  export BIVY_REPO=$ENGINE
+  export POVY_REPO=$ENGINE
 }
 
 run_piped() {
   # shellcheck disable=SC2002
-  run bash -c "cat '$BIVY_ROOT/bootstrap' | PATH='$1' bash"
+  run bash -c "cat '$POVY_ROOT/bootstrap' | PATH='$1' bash"
 }
 
 @test "native Windows is refused with a pointer to WSL2" {
@@ -36,13 +36,13 @@ run_piped() {
     [[ "$output" == *"Windows is not supported"* ]]
     [[ "$output" == *"wsl --install"* ]]
   done
-  [ ! -e "$HOME/.local/share/bivy" ]
+  [ ! -e "$HOME/.local/share/povy" ]
 }
 
 @test "WSL1 is refused" {
   stub_uname Linux
   echo 'Linux version 4.4.0-19041-Microsoft' >"$BATS_TEST_TMPDIR/proc"
-  export BIVY_PROC_VERSION=$BATS_TEST_TMPDIR/proc
+  export POVY_PROC_VERSION=$BATS_TEST_TMPDIR/proc
   run_piped "$STUBS:$PATH"
   [ "$status" -eq 1 ]
   [[ "$output" == *"WSL1 is not supported"* ]]
@@ -56,34 +56,34 @@ run_piped() {
 }
 
 @test "the copy of the detection in bootstrap matches the engine" {
-  extract() { sed -n '/^bivy_detect_os() {$/,/^}$/p' "$1"; }
-  [ -n "$(extract "$BIVY_ROOT/bootstrap")" ]
-  [ "$(extract "$BIVY_ROOT/bootstrap")" = "$(extract "$BIVY_ROOT/lib/common.sh")" ]
+  extract() { sed -n '/^povy_detect_os() {$/,/^}$/p' "$1"; }
+  [ -n "$(extract "$POVY_ROOT/bootstrap")" ]
+  [ "$(extract "$POVY_ROOT/bootstrap")" = "$(extract "$POVY_ROOT/lib/common.sh")" ]
 }
 
 @test "piped, without a terminal: clones the engine and installs the command" {
   engine_repo
   run_piped "$PATH"
   [ "$status" -eq 0 ]
-  [ -L "$HOME/.local/bin/bivy" ]
-  [ -f "$HOME/.local/share/bivy/bin/bivy" ]
+  [ -L "$HOME/.local/bin/povy" ]
+  [ -f "$HOME/.local/share/povy/bin/povy" ]
   [[ "$output" == *"Next:"* ]]
-  [ ! -e "$HOME/.config/bivy/config.toml" ]
-  run "$HOME/.local/bin/bivy" help
+  [ ! -e "$HOME/.config/povy/config.toml" ]
+  run "$HOME/.local/bin/povy" help
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Usage: bivy"* ]]
+  [[ "$output" == *"Usage: povy"* ]]
 }
 
 @test "piped, with a terminal: answers come from it and the machine is configured" {
   engine_repo
-  export BIVY_TTY=$BATS_TEST_TMPDIR/tty
+  export POVY_TTY=$BATS_TEST_TMPDIR/tty
   # The same file serves the confirmation, then the three questions.
-  printf 'Y\nuser@example.org\n\n' >"$BIVY_TTY"
+  printf 'Y\nuser@example.org\n\n' >"$POVY_TTY"
   run_piped "$PATH"
   [ "$status" -eq 0 ]
-  grep -qxF 'name = "Y"' "$HOME/.config/bivy/config.toml"
-  grep -qxF 'email = "user@example.org"' "$HOME/.config/bivy/config.toml"
-  run "$HOME/.local/bin/bivy" doctor
+  grep -qxF 'name = "Y"' "$HOME/.config/povy/config.toml"
+  grep -qxF 'email = "user@example.org"' "$HOME/.config/povy/config.toml"
+  run "$HOME/.local/bin/povy" doctor
   [ "$status" -eq 0 ]
 }
 
@@ -94,25 +94,25 @@ run_piped() {
   commit_all "$ENGINE"
   run_piped "$PATH"
   [ "$status" -eq 0 ]
-  [ -f "$HOME/.local/share/bivy/CHANGED" ]
+  [ -f "$HOME/.local/share/povy/CHANGED" ]
 }
 
 @test "a non-Git directory at the engine location is left alone" {
   engine_repo
-  mkdir -p "$HOME/.local/share/bivy"
-  echo mine >"$HOME/.local/share/bivy/file"
+  mkdir -p "$HOME/.local/share/povy"
+  echo mine >"$HOME/.local/share/povy/file"
   run_piped "$PATH"
   [ "$status" -eq 1 ]
-  [ "$(cat "$HOME/.local/share/bivy/file")" = mine ]
+  [ "$(cat "$HOME/.local/share/povy/file")" = mine ]
 }
 
 @test "an unrelated file at the command location is left alone" {
   engine_repo
   mkdir -p "$HOME/.local/bin"
-  echo mine >"$HOME/.local/bin/bivy"
+  echo mine >"$HOME/.local/bin/povy"
   run_piped "$PATH"
   [ "$status" -eq 1 ]
-  [ "$(cat "$HOME/.local/bin/bivy")" = mine ]
+  [ "$(cat "$HOME/.local/bin/povy")" = mine ]
 }
 
 @test "mise is installed from mise.run when missing" {

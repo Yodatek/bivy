@@ -14,7 +14,7 @@ detect_with() {
   printf '#!/bin/sh\necho %s\n' "$1" >"$STUBS/uname"
   chmod +x "$STUBS/uname"
   printf '%s\n' "$2" >"$PROC"
-  PATH="$STUBS:$PATH" BIVY_PROC_VERSION=$PROC bivy_detect_os
+  PATH="$STUBS:$PATH" POVY_PROC_VERSION=$PROC povy_detect_os
 }
 
 @test "systems are told apart" {
@@ -27,7 +27,7 @@ detect_with() {
 }
 
 @test "WSL refuses a home on a Windows drive" {
-  . "$BIVY_ROOT/lib/os/wsl.sh"
+  . "$POVY_ROOT/lib/os/wsl.sh"
   HOME=/mnt/c/Users/me run os_preflight
   [ "$status" -ne 0 ]
   [[ "$output" == *"Windows drive"* ]]
@@ -36,16 +36,16 @@ detect_with() {
 }
 
 @test "WSL warns about a Windows mise" {
-  . "$BIVY_ROOT/lib/os/wsl.sh"
-  . "$BIVY_ROOT/lib/cmd/doctor.sh"
+  . "$POVY_ROOT/lib/os/wsl.sh"
+  . "$POVY_ROOT/lib/cmd/doctor.sh"
   command() { printf '/mnt/c/tools/mise\n'; }
   run os_doctor
   [[ "$output" == *"Windows binary"* ]]
 }
 
 @test "the login file default differs per system" {
-  . "$BIVY_ROOT/lib/os/darwin.sh"
+  . "$POVY_ROOT/lib/os/darwin.sh"
   [ "$(os_bash_login_default)" = .bash_profile ]
-  . "$BIVY_ROOT/lib/os/linux.sh"
+  . "$POVY_ROOT/lib/os/linux.sh"
   [ "$(os_bash_login_default)" = .profile ]
 }

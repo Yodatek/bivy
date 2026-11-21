@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# scripts/release and bivy version, on a throwaway repository and its origin.
+# scripts/release and povy version, on a throwaway repository and its origin.
 
 load helper
 
@@ -11,7 +11,7 @@ setup() {
   git init --quiet --bare -b main "$BATS_TEST_TMPDIR/origin.git"
   git clone --quiet "$BATS_TEST_TMPDIR/origin.git" "$REPO" 2>/dev/null
   mkdir -p "$REPO/scripts"
-  cp "$BIVY_ROOT/scripts/release" "$REPO/scripts/"
+  cp "$POVY_ROOT/scripts/release" "$REPO/scripts/"
   cat >"$REPO/CHANGELOG.md" <<'MD'
 # Changelog
 
@@ -59,7 +59,7 @@ commit() {
   run "$RELEASE" tag v1.2.0
   [ "$status" -eq 0 ]
   [ "$(git -C "$REPO" cat-file -t refs/tags/v1.2.0)" = tag ]
-  [ "$(git -C "$REPO" tag -l --format='%(contents)' v1.2.0)" = $'bivy 1.2.0\n\n### Added\n\n- Something new.' ]
+  [ "$(git -C "$REPO" tag -l --format='%(contents)' v1.2.0)" = $'povy 1.2.0\n\n### Added\n\n- Something new.' ]
   run "$RELEASE" tag v1.2.0
   [ "$status" -ne 0 ]
   [[ "$output" == *"already exists"* ]]
@@ -81,7 +81,7 @@ commit() {
 }
 
 @test "check accepts an annotated tag on main, and refuses a lightweight one or one off main" {
-  git -C "$REPO" tag --annotate -m "bivy 1.2.0" v1.2.0
+  git -C "$REPO" tag --annotate -m "povy 1.2.0" v1.2.0
   run "$RELEASE" check v1.2.0
   [ "$status" -eq 0 ]
   git -C "$REPO" tag v1.1.0
@@ -90,24 +90,24 @@ commit() {
   git -C "$REPO" tag -d v1.1.0 >/dev/null
   git -C "$REPO" switch --quiet -c side
   commit side
-  git -C "$REPO" tag --annotate -m "bivy 1.1.0" v1.1.0
+  git -C "$REPO" tag --annotate -m "povy 1.1.0" v1.1.0
   run "$RELEASE" check v1.1.0
   [ "$status" -ne 0 ]
   [[ "$output" == *"not on main"* ]]
 }
 
-@test "bivy version follows the annotated release tags of its clone" {
+@test "povy version follows the annotated release tags of its clone" {
   load_libs
-  version() { (BIVY_ROOT=$REPO && bivy_version); }
+  version() { (POVY_ROOT=$REPO && povy_version); }
   [ "$(version)" = "$(git -C "$REPO" rev-parse --short HEAD)" ]
-  git -C "$REPO" tag --annotate -m "bivy 1.2.0" v1.2.0
+  git -C "$REPO" tag --annotate -m "povy 1.2.0" v1.2.0
   [ "$(version)" = 1.2.0 ]
   commit later
   git -C "$REPO" tag v1.3.0
   [ "$(version)" = "1.2.0-1-g$(git -C "$REPO" rev-parse --short HEAD)" ]
   touch "$REPO/CHANGELOG.md" && echo >>"$REPO/CHANGELOG.md"
   [[ "$(version)" == *-dirty ]]
-  run bivy --version
+  run povy --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "bivy "?* ]]
+  [[ "$output" == "povy "?* ]]
 }
