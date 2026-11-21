@@ -49,6 +49,16 @@ bivy_ensure_dirs() {
   chmod 700 "$BIVY_CONFIG_DIR" "$BIVY_STATE_DIR"
 }
 
+# The release the engine is on, read from its Git clone: 0.1.0 on a release tag,
+# 0.1.0-3-gabc1234 three commits after it, the commit alone before any release.
+# Only annotated tags count, as releases are.
+bivy_version() {
+  local version
+  version=$(git -C "$BIVY_ROOT" describe --match 'v[0-9]*' --always --dirty 2>/dev/null) ||
+    version=unknown
+  printf '%s\n' "${version#v}"
+}
+
 # Kept identical to the copy in bootstrap, which runs before the engine exists.
 bivy_detect_os() {
   case "$(uname -s)" in

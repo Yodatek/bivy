@@ -39,6 +39,7 @@ Commands:
   doctor                   Check the real state; exits 1 if something is wrong
   banner                   Show the tools, what does not work and the machine load
   tools                    List each tool, where it is declared and what mise runs
+  version                  Show the version of bivy
   help                     Show this message
 EOF
 }
@@ -52,6 +53,7 @@ case "$command" in
     . "$BIVY_ROOT/lib/cmd/$command.sh"
     "cmd_$command" "$@"
     ;;
+  version | -V | --version) printf 'bivy %s\n' "$(bivy_version)" ;;
   help | -h | --help) usage ;;
   *)
     usage >&2

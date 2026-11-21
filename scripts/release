@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Releases are annotated tags vX.Y.Z on main, whose message holds the version's
+# section of CHANGELOG.md. The Release workflow publishes them.
+#
+#   scripts/release notes vX.Y.Z   prints the CHANGELOG section of the version
+#   scripts/release tag vX.Y.Z     creates the tag on a clean main that matches origin
+#   scripts/release check vX.Y.Z   checks a pushed tag before it is published
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+
+die() {
+  printf 'release: %s\n' "$*" >&2
+  exit 1
+}
+
+# The lines between "## [X.Y.Z]" and the next heading or the links at the bottom,
+# without the blank lines around them.
+release_notes() {
+  local notes
+  notes=$(awk -v heading="## [${1#v}]" '
+    index($0, "## ") == 1 { if (on) exit; on = index($0, heading) == 1; next }
+    on && /^\[[^]]*\]: / { exit }
+    on { lines[++n] = $0 }
+    END {
+      first = 1
+      while (first <= n && lines[first] ~ /^[[:space:]]*$/) first++
+      last = n
+      while (last >= first && lines[last] ~ /^[[:space:]]*$/) last--
+      for (i = first; i <= last; i++) print lines[i]
+    }
+  ' "$root/CHANGELOG.md")
+  [ -n "$notes" ] || die "CHANGELOG.md has no section for ${1#v}"
+  printf '%s\n' "$notes"
+}
+
+release_tag() {
+  local tag=$1 notes
+  [ -z "$(git -C "$root" status --porcelain)" ] || die "the working tree is not clean"
+  [ "$(git -C "$root" rev-parse --abbrev-ref HEAD)" = main ] || die "releases are tagged on main"
+  git -C "$root" fetch --quiet origin main
+  [ "$(git -C "$root" rev-parse HEAD)" = "$(git -C "$root" rev-parse origin/main)" ] ||
+    die "main differs from origin/main; push or pull first"
+  ! git -C "$root" rev-parse --quiet --verify "refs/tags/$tag" >/dev/null || die "$tag already exists"
+  notes=$(release_notes "$tag")
+  printf 'bivy %s\n\n%s\n' "${tag#v}" "$notes" | git -C "$root" tag --annotate --cleanup=whitespace --file - "$tag"
+  printf 'Created %s. Publish it with: git push origin %s\n' "$tag" "$tag"
+}
+
+release_check() {
+  local tag=$1
+  [ "$(git -C "$root" cat-file -t "refs/tags/$tag" 2>/dev/null)" = tag ] ||
+    die "$tag is not an annotated tag; create it with: scripts/release tag $tag"
+  git -C "$root" merge-base --is-ancestor "refs/tags/$tag^{commit}" refs/remotes/origin/main ||
+    die "$tag is not on main"
+  release_notes "$tag" >/dev/null
+}
+
+[ $# -eq 2 ] || die "usage: scripts/release notes|tag|check vX.Y.Z"
+[[ "$2" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "a version looks like v1.2.3: $2"
+case "$1" in
+  notes) release_notes "$2" ;;
+  tag) release_tag "$2" ;;
+  check) release_check "$2" ;;
+  *) die "usage: scripts/release notes|tag|check vX.Y.Z" ;;
+esac

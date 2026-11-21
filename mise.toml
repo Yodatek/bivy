@@ -11,7 +11,7 @@ run = "bats tests"
 
 [tasks.lint]
 run = [
-  "shellcheck -x bootstrap bin/bivy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash .githooks/pre-push scripts/banner-image",
+  "shellcheck -x bootstrap bin/bivy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash .githooks/pre-push scripts/banner-image scripts/release",
   "shellcheck -s sh _samples/profile/bin/* _samples/profile/shell/*.sh",
   "actionlint",
 ]
