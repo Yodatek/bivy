@@ -17,7 +17,7 @@ apply_render_files() {
   while IFS=$'\t' read -r source target; do
     [ -n "$source" ] || continue
     index=$((index + 1))
-    (umask 077 && template_render "$BIVY_PROFILE_DIR/$source" "$BIVY_STAGING/$index") ||
+    (umask 077 && template_render "$BIVY_PROFILE_ROOT/$source" "$BIVY_STAGING/$index") ||
       die "could not render $source"
   done <<<"$PROFILE_FILES"
 }
@@ -96,7 +96,7 @@ cmd_apply() {
   config_load
   env_ensure
   profile_sync "$CFG_PROFILE" "$CFG_PROFILE_BRANCH"
-  profile_load "$CFG_PROFILE"
+  profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH"
   env_seed "$PROFILE_SECRETS"
 
   missing=$(env_missing "$PROFILE_SECRETS")

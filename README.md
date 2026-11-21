@@ -42,11 +42,11 @@ name = "Ada Lovelace"
 email = "ada@example.org"
 profile = "git@example.org:me/my-profile.git"
 profile_branch = "main" # optional: a branch of the profile repository, else its default
+profile_path = "bivy"   # optional: the directory of the repository that holds profile.toml
+prompt = "starship"     # optional: starship, or none to keep yours; overrides the profile
 
 [tools]            # optional, overrides the profile
 node = "22"
-
-prompt = "starship" # optional: starship, or none to keep yours; overrides the profile
 
 [[identities]]     # optional, another Git identity under a directory
 dir = "~/oss/"
@@ -66,7 +66,9 @@ in an identity directory, so `apply` and `doctor` name the file that holds one.
 
 ## Profiles
 
-A profile has a `profile.toml` at its root. See [examples/profile](examples/profile).
+A profile has a `profile.toml` at the root of its repository, or in the directory that
+`profile_path` names. [_samples/profile](_samples/profile) uses every key, and its README
+shows how to try it on a machine.
 
 ```toml
 prompt = "starship"                 # optional, see Prompt

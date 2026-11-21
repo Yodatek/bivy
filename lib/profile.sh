@@ -1,6 +1,9 @@
 # shellcheck shell=bash
 # A profile is an external Git repository holding a profile.toml, which declares
 # required secrets, extra mise tools and templates written in the home directory.
+# The profile may sit in a subdirectory of the repository, given by profile_path:
+# Git works on the clone, BIVY_PROFILE_DIR, and everything else reads from
+# BIVY_PROFILE_ROOT, the directory that holds profile.toml.
 
 PROFILE_SECRETS=""
 PROFILE_TOOLS=""
@@ -54,34 +57,38 @@ valid_relative_path() {
   ! has_control_chars "$path"
 }
 
+# Succeeds when a directory resolves, symlinks followed, to a place inside another.
+path_within() {
+  local real base
+  real=$(cd -P "$1" 2>/dev/null && pwd) || return 1
+  base=$(cd -P "$2" 2>/dev/null && pwd) || return 1
+  case "$real/" in
+    "$base/"*) return 0 ;;
+  esac
+  return 1
+}
+
 # Rejects a template that resolves outside the profile through a symlink.
 profile_check_source() {
-  local rel=$1 path dir
-  path="$BIVY_PROFILE_DIR/$rel"
+  local rel=$1 path
+  path="$BIVY_PROFILE_ROOT/$rel"
   [ -f "$path" ] && [ ! -L "$path" ] || die "profile template not found: $rel"
-  dir=$(cd -P "$(dirname "$path")" && pwd) || die "profile template not found: $rel"
-  case "$dir/" in
-    "$(cd -P "$BIVY_PROFILE_DIR" && pwd)/"*) ;;
-    *) die "profile template is outside the profile: $rel" ;;
-  esac
+  path_within "$(dirname "$path")" "$BIVY_PROFILE_ROOT" || die "profile template is outside the profile: $rel"
 }
 
 # Rejects a directory that is missing or resolves outside the profile.
 profile_check_dir() {
-  local rel=$1 path real
-  path="$BIVY_PROFILE_DIR/$rel"
+  local rel=$1 path
+  path="$BIVY_PROFILE_ROOT/$rel"
   [ -d "$path" ] || die "profile directory not found: $rel"
-  real=$(cd -P "$path" && pwd) || die "profile directory not found: $rel"
-  case "$real/" in
-    "$(cd -P "$BIVY_PROFILE_DIR" && pwd)/"*) ;;
-    *) die "profile directory is outside the profile: $rel" ;;
-  esac
+  path_within "$path" "$BIVY_PROFILE_ROOT" || die "profile directory is outside the profile: $rel"
 }
 
 # Fills PROFILE_SECRETS (one per line), PROFILE_TOOLS (name<TAB>version) and
-# PROFILE_FILES (source<TAB>target). Stays empty when no profile is configured.
+# PROFILE_FILES (source<TAB>target), from the clone or from its subdirectory given
+# as the second argument. Stays empty when no profile is configured.
 profile_load() {
-  local url=$1 file raw secret source target count seen=0 tag
+  local url=$1 subdir=${2:-} file raw secret source target count seen=0 tag
   PROFILE_SECRETS=""
   PROFILE_TOOLS=""
   PROFILE_FILES=""
@@ -89,9 +96,15 @@ profile_load() {
   PROFILE_BIN=""
   PROFILE_SHELL=""
   PROFILE_PACKAGES=""
+  BIVY_PROFILE_ROOT=$BIVY_PROFILE_DIR
   [ -n "$url" ] || return 0
-  file="$BIVY_PROFILE_DIR/profile.toml"
-  [ -f "$file" ] || die "the profile has no profile.toml: $url"
+  if [ -n "$subdir" ]; then
+    BIVY_PROFILE_ROOT="$BIVY_PROFILE_DIR/$subdir"
+    [ -d "$BIVY_PROFILE_ROOT" ] || die "the profile repository has no directory $subdir: $url"
+    path_within "$BIVY_PROFILE_ROOT" "$BIVY_PROFILE_DIR" || die "profile_path is outside the profile: $subdir"
+  fi
+  file="$BIVY_PROFILE_ROOT/profile.toml"
+  [ -f "$file" ] || die "the profile has no profile.toml: $url${subdir:+, path $subdir}"
 
   raw=$(toml_query "$file" '(.secrets.required // [])[]') || die "$file is not valid TOML"
   while IFS= read -r secret; do

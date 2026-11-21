@@ -1,4 +1,4 @@
-# Generic example. A real profile lives in its own Git repository.
+# The profile the tests use. _samples/profile shows every key.
 
 # Commands put on PATH in every shell, read from the profile clone.
 bin = "bin"

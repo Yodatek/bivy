@@ -51,7 +51,7 @@ doctor_check_shadowed() {
 }
 
 doctor_check_packages() {
-  local wanted missing names count
+  local wanted missing names here manager name count managers
   wanted=$(packages_wanted)
   [ -n "$wanted" ] || return 0
   missing=$(packages_missing "$wanted")
@@ -61,10 +61,16 @@ doctor_check_packages() {
   names=${names% }
   if [ -n "$names" ]; then
     doctor_fail "packages not installed: $names; run: bivy apply"
-  else
-    count=$(printf '%s\n' "$wanted" | awk 'NF' | wc -l | tr -d ' ')
-    doctor_ok "packages: the profile and machine lists are installed ($count names)"
+    return 0
   fi
+  # Lists for managers absent here, such as apt on macOS, are not counted.
+  here=$(printf '%s\n' "$wanted" | while IFS=$'\t' read -r manager name; do
+    [ -z "$(packages_command "$manager")" ] || printf '%s\t%s\n' "$manager" "$name"
+  done)
+  [ -n "$here" ] || return 0
+  count=$(printf '%s\n' "$here" | wc -l | tr -d ' ')
+  managers=$(printf '%s\n' "$here" | awk -F'\t' '!seen[$1]++ { printf "%s%s", (n++ ? ", " : ""), $1 }')
+  doctor_ok "packages: $count installed with $managers"
 }
 
 doctor_check_prompt() {
@@ -198,16 +204,16 @@ doctor_check_git() {
 
 doctor_check_profile() {
   local missing source target path mode
-  if ! (profile_load "$CFG_PROFILE") 2>/dev/null; then
+  if ! (profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH") 2>/dev/null; then
     doctor_fail "the profile is missing or invalid; run: bivy apply"
     return 0
   fi
-  profile_load "$CFG_PROFILE"
-  [ -z "$CFG_PROFILE" ] || doctor_ok "profile $CFG_PROFILE${CFG_PROFILE_BRANCH:+, branch $CFG_PROFILE_BRANCH}"
+  profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH"
+  [ -z "$CFG_PROFILE" ] || doctor_ok "profile $CFG_PROFILE${CFG_PROFILE_BRANCH:+, branch $CFG_PROFILE_BRANCH}${CFG_PROFILE_PATH:+, path $CFG_PROFILE_PATH}"
   if [ -n "$PROFILE_BIN" ]; then
     # shellcheck disable=SC2016 # Expanded by the probed shell.
     case ":$(doctor_probe bash -lc 'printf "%s\n" "$PATH"'):" in
-      *":$BIVY_PROFILE_DIR/$PROFILE_BIN:"*) doctor_ok "profile commands on PATH: $PROFILE_BIN" ;;
+      *":$BIVY_PROFILE_ROOT/$PROFILE_BIN:"*) doctor_ok "profile commands on PATH: $PROFILE_BIN" ;;
       *) doctor_fail "the profile commands in $PROFILE_BIN are not on PATH; run: bivy apply" ;;
     esac
   fi

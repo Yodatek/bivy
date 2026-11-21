@@ -87,8 +87,8 @@ cmd_tools() {
   mise_find >/dev/null || die "mise is not installed; run the bivy bootstrap first"
   yq_resolve || die "$BIVY_YQ_TOOL is not installed; run: bivy init"
   config_load
-  if (profile_load "$CFG_PROFILE") 2>/dev/null; then
-    profile_load "$CFG_PROFILE"
+  if (profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH") 2>/dev/null; then
+    profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH"
   else
     warn "the profile is not cloned yet; run: bivy apply"
   fi

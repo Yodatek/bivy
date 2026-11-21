@@ -6,6 +6,7 @@ CFG_NAME=""
 CFG_EMAIL=""
 CFG_PROFILE=""
 CFG_PROFILE_BRANCH=""
+CFG_PROFILE_PATH=""
 CFG_TOOLS=""
 CFG_IDENTITIES=""
 CFG_PACKAGES=""
@@ -172,6 +173,12 @@ config_read() {
     [ -n "$CFG_PROFILE" ] || die "$file: profile_branch needs a profile"
     [[ "$CFG_PROFILE_BRANCH" =~ ^[A-Za-z0-9_][A-Za-z0-9._/-]*$ ]] && [[ "$CFG_PROFILE_BRANCH" != *..* ]] ||
       die "$file: invalid profile_branch: $CFG_PROFILE_BRANCH"
+  fi
+  CFG_PROFILE_PATH=$(toml_string "$file" profile_path) || exit 1
+  CFG_PROFILE_PATH=${CFG_PROFILE_PATH%/}
+  if [ -n "$CFG_PROFILE_PATH" ]; then
+    [ -n "$CFG_PROFILE" ] || die "$file: profile_path needs a profile"
+    valid_relative_path "$CFG_PROFILE_PATH" || die "$file: invalid profile_path: $CFG_PROFILE_PATH"
   fi
   problem=$(profile_url_problem "$CFG_PROFILE")
   [ -z "$problem" ] || die "$file: $problem"

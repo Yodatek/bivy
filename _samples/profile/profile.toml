@@ -1,0 +1,41 @@
+# A sample bivy profile that uses every key. Every key is optional: copy this
+# directory to a Git repository of your own and keep what you need.
+
+# Starts Starship in interactive zsh and bash; "none" leaves your prompt alone.
+prompt = "starship"
+
+# A directory of commands, on PATH in every shell and in graphical apps.
+bin = "bin"
+
+# Files that each interactive zsh or bash sources once, for aliases and functions.
+shell = ["shell/aliases.sh"]
+
+# Secrets the profile needs. bivy init adds an empty line for each one to
+# ~/.config/bivy/.env, which you fill in. Templates read them as {{NAME}}.
+[secrets]
+required = ["SAMPLE_API_TOKEN"]
+
+# Tools that mise installs. A list installs every version, the first one is the
+# default.
+[tools]
+jq = "1.7.1"
+node = ["22", "20"]
+
+# What mise does not install. Each list is used where its manager exists, so one
+# profile serves macOS and Linux. Missing packages are installed, none removed.
+[packages]
+brew = ["tree"]      # macOS formulas
+# cask = ["iterm2"]  # macOS apps, left out so that trying the sample adds none
+apt = ["tree"]       # Debian, Ubuntu, WSL2
+dnf = ["tree"]       # Fedora, RHEL
+
+# Templates written in the home directory, in mode 600. They can use {{name}},
+# {{email}}, {{home}}, and {{NAME}} for each required secret.
+[[files]]
+source = "files/sample.conf.tmpl"
+target = ".config/bivy-sample/sample.conf"
+
+# The look of the prompt.
+[[files]]
+source = "files/starship.toml"
+target = ".config/starship.toml"

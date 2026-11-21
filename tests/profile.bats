@@ -314,3 +314,45 @@ jq = "1.7.1"'
   [ "$status" -ne 0 ]
   [[ "$output" == *"profile_branch needs a profile"* ]]
 }
+
+@test "profile_path reads the profile from a directory of its repository" {
+  mkdir -p "$PROFILE/nested"
+  cp -R "$BIVY_ROOT/tests/fixtures/profile" "$PROFILE/nested/profile"
+  commit_all "$PROFILE"
+  write_config "$CONFIG" "$PROFILE"
+  printf 'profile_path = "nested/profile/"\n' >>"$CONFIG"
+  bivy init --config "$CONFIG"
+  echo 'EXAMPLE_API_TOKEN=x' >>"$HOME/.config/bivy/.env"
+  run bivy apply
+  [ "$status" -eq 0 ]
+  grep -qx 'token = x' "$HOME/.config/bivy-example/example.conf"
+  run env -i HOME="$HOME" PATH=/usr/bin:/bin bash -lc 'example-hello'
+  [ "$output" = "hello from the example profile" ]
+  run bivy doctor
+  [[ "$output" == *"[ok]   profile $PROFILE, path nested/profile"* ]]
+  [[ "$output" == *"[ok]   profile commands on PATH: bin"* ]]
+}
+
+@test "invalid profile_path values are refused" {
+  local value
+  make_custom_profile "$PROFILE" '[tools]
+jq = "1.7.1"'
+  mkdir -p "$PROFILE/empty"
+  touch "$PROFILE/empty/.keep"
+  ln -s "$BATS_TEST_TMPDIR" "$PROFILE/escape"
+  commit_all "$PROFILE"
+  for value in '"../outside"' '"/abs"' '"a/../b"' '3' '"missing"' '"escape"' '"empty"'; do
+    write_config "$CONFIG" "$PROFILE"
+    printf 'profile_path = %s\n' "$value" >>"$CONFIG"
+    run bivy init --config "$CONFIG"
+    [ "$status" -ne 0 ] || {
+      echo "accepted: $value"
+      return 1
+    }
+  done
+  write_config "$CONFIG"
+  printf 'profile_path = "x"\n' >>"$CONFIG"
+  run bivy init --config "$CONFIG"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"profile_path needs a profile"* ]]
+}

@@ -1,0 +1,30 @@
+# Written by bivy from the sample profile.
+"$schema" = "https://starship.rs/config-schema.json"
+
+add_newline = false
+format = "$directory$git_branch$git_status$nodejs$java$cmd_duration$line_break$character"
+
+[directory]
+style = "bold cyan"
+truncation_length = 3
+
+[git_branch]
+format = "[$symbol$branch]($style) "
+style = "bold purple"
+
+[git_status]
+style = "bold red"
+
+[nodejs]
+format = "[$symbol$version]($style) "
+
+[java]
+format = "[$symbol$version]($style) "
+
+[cmd_duration]
+min_time = 2000
+format = "[$duration]($style) "
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"

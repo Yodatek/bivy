@@ -88,9 +88,9 @@ profile = "$profile"
 TOML
 }
 
-# Turns the example profile, or the given directory, into a Git repository.
+# Turns the test profile, or the given directory, into a Git repository.
 make_profile_repo() {
-  local dest=$1 from=${2:-$BIVY_ROOT/examples/profile}
+  local dest=$1 from=${2:-$BIVY_ROOT/tests/fixtures/profile}
   mkdir -p "$dest"
   cp -R "$from/." "$dest/"
   commit_all "$dest"

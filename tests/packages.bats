@@ -143,14 +143,16 @@ calls() {
   done
 }
 
-@test "doctor reports the packages that are missing" {
+@test "doctor reports the packages that are missing, and counts those of managers here" {
   local config=$BATS_TEST_TMPDIR/c.toml
+  rm "$STUBS/dnf"
+  ! command -v dnf >/dev/null || skip "dnf is installed here"
   write_config "$config"
-  printf '[packages]\nbrew = ["podman"]\n' >>"$config"
+  printf '[packages]\nbrew = ["podman"]\ndnf = ["podman", "git"]\n' >>"$config"
   bivy init --config "$config"
   run bivy doctor
   [[ "$output" == *"[FAIL] packages not installed: brew:podman; run: bivy apply"* ]]
   echo podman >"$STATE/formula"
   run bivy doctor
-  [[ "$output" == *"[ok]   packages:"* ]]
+  [[ "$output" == *"[ok]   packages: 1 installed with brew"* ]]
 }

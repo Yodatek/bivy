@@ -46,7 +46,7 @@ __bivy_path_front() {
 EOF
     printf '__bivy_path_front %s\n' "$(shell_path_literal "$BIVY_LOCAL_BIN")"
     if [ -n "${PROFILE_BIN:-}" ]; then
-      printf '__bivy_path_front %s\n' "$(shell_path_literal "$BIVY_PROFILE_DIR/$PROFILE_BIN")"
+      printf '__bivy_path_front %s\n' "$(shell_path_literal "$BIVY_PROFILE_ROOT/$PROFILE_BIN")"
     fi
     printf '__bivy_path_front %s\n' "$(shell_path_literal "$BIVY_SHIMS_DIR")"
     echo 'export PATH'
@@ -97,7 +97,7 @@ shell_write_interactive() {
       echo '  __bivy_shell_loaded=1'
       while IFS= read -r source; do
         [ -n "$source" ] || continue
-        source=$(shell_path_literal "$BIVY_PROFILE_DIR/$source")
+        source=$(shell_path_literal "$BIVY_PROFILE_ROOT/$source")
         printf '  if [ -r %s ]; then . %s; fi\n' "$source" "$source"
       done <<<"$PROFILE_SHELL"
       echo 'fi'
