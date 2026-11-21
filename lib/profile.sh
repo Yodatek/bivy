@@ -6,6 +6,8 @@ PROFILE_SECRETS=""
 PROFILE_TOOLS=""
 PROFILE_FILES=""
 PROFILE_PROMPT=""
+PROFILE_BIN=""
+PROFILE_SHELL=""
 
 BIVY_SECRET_RE='^[A-Za-z_][A-Za-z0-9_]*$'
 
@@ -63,14 +65,28 @@ profile_check_source() {
   esac
 }
 
+# Rejects a directory that is missing or resolves outside the profile.
+profile_check_dir() {
+  local rel=$1 path real
+  path="$BIVY_PROFILE_DIR/$rel"
+  [ -d "$path" ] || die "profile directory not found: $rel"
+  real=$(cd -P "$path" && pwd) || die "profile directory not found: $rel"
+  case "$real/" in
+    "$(cd -P "$BIVY_PROFILE_DIR" && pwd)/"*) ;;
+    *) die "profile directory is outside the profile: $rel" ;;
+  esac
+}
+
 # Fills PROFILE_SECRETS (one per line), PROFILE_TOOLS (name<TAB>version) and
 # PROFILE_FILES (source<TAB>target). Stays empty when no profile is configured.
 profile_load() {
-  local url=$1 file raw secret source target count seen=0
+  local url=$1 file raw secret source target count seen=0 tag
   PROFILE_SECRETS=""
   PROFILE_TOOLS=""
   PROFILE_FILES=""
   PROFILE_PROMPT=""
+  PROFILE_BIN=""
+  PROFILE_SHELL=""
   [ -n "$url" ] || return 0
   file="$BIVY_PROFILE_DIR/profile.toml"
   [ -f "$file" ] || die "the profile has no profile.toml: $url"
@@ -84,6 +100,28 @@ profile_load() {
 
   PROFILE_TOOLS=$(toml_tools "$file") || exit 1
   PROFILE_PROMPT=$(toml_prompt "$file") || exit 1
+
+  # bin: a directory of commands put on PATH, read in place from the clone.
+  PROFILE_BIN=$(toml_string "$file" bin) || exit 1
+  PROFILE_BIN=${PROFILE_BIN%/}
+  if [ -n "$PROFILE_BIN" ]; then
+    valid_relative_path "$PROFILE_BIN" || die "$file: invalid bin: $PROFILE_BIN"
+    profile_check_dir "$PROFILE_BIN"
+  fi
+
+  # shell: files that interactive shells source, for aliases and functions.
+  tag=$(toml_query "$file" '(.shell // []) | tag') || die "$file is not valid TOML"
+  [ "$tag" = '!!seq' ] || die "$file: shell must be a list of files"
+  tag=$(toml_query "$file" '[(.shell // [])[] | tag | select(. != "!!str")] | length') ||
+    die "$file is not valid TOML"
+  [ "$tag" = 0 ] || die "$file: shell must be a list of files"
+  raw=$(toml_query "$file" '(.shell // [])[]') || die "$file is not valid TOML"
+  while IFS= read -r source; do
+    [ -n "$source" ] || continue
+    valid_relative_path "$source" || die "$file: invalid shell file: $source"
+    profile_check_source "$source"
+    PROFILE_SHELL="$PROFILE_SHELL$source"$'\n'
+  done <<<"$raw"
 
   count=$(toml_query "$file" '(.files // []) | length') || die "$file is not valid TOML"
   raw=$(toml_tsv "$file" '(.files // [])[] | [(.source // ""), (.target // "")]') ||

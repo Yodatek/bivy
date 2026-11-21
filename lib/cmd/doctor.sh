@@ -187,6 +187,13 @@ doctor_check_profile() {
   fi
   profile_load "$CFG_PROFILE"
   [ -z "$CFG_PROFILE" ] || doctor_ok "profile $CFG_PROFILE${CFG_PROFILE_BRANCH:+, branch $CFG_PROFILE_BRANCH}"
+  if [ -n "$PROFILE_BIN" ]; then
+    # shellcheck disable=SC2016 # Expanded by the probed shell.
+    case ":$(doctor_probe bash -lc 'printf "%s\n" "$PATH"'):" in
+      *":$BIVY_PROFILE_DIR/$PROFILE_BIN:"*) doctor_ok "profile commands on PATH: $PROFILE_BIN" ;;
+      *) doctor_fail "the profile commands in $PROFILE_BIN are not on PATH; run: bivy apply" ;;
+    esac
+  fi
 
   missing=$(env_missing "$PROFILE_SECRETS")
   if [ -n "$missing" ]; then

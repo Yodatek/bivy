@@ -1,5 +1,11 @@
 # Generic example. A real profile lives in its own Git repository.
 
+# Commands put on PATH in every shell, read from the profile clone.
+bin = "bin"
+
+# Files that interactive shells source: aliases and functions.
+shell = ["shell/example.sh"]
+
 [secrets]
 required = ["EXAMPLE_API_TOKEN"]
 

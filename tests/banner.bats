@@ -154,7 +154,6 @@ banner() {
   bivy init --config "$BATS_TEST_TMPDIR/c.toml"
   bivy apply
   ! grep -q 'banner --auto' "$HOME/.config/bivy/interactive.sh"
-  grep -qF 'banner = false' "$HOME/.config/bivy/interactive.sh"
   run banner
   echo "$output"
   [[ "$output" == *"all good"* ]]

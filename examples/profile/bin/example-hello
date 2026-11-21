@@ -1,0 +1,3 @@
+#!/bin/sh
+# A command of the example profile: bin puts it on PATH in every shell.
+echo "hello from the example profile"

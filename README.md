@@ -70,6 +70,9 @@ A profile has a `profile.toml` at its root. See [examples/profile](examples/prof
 
 ```toml
 prompt = "starship"                 # optional, see Prompt
+bin = "bin"                         # optional, commands put on PATH
+shell = ["shell/aliases.sh"]        # optional, sourced by interactive shells
+
 [secrets]
 required = ["EXAMPLE_API_TOKEN"]   # read from ~/.config/bivy/.env
 
@@ -86,8 +89,13 @@ Files are written in mode 600. Templates can use `{{name}}`, `{{email}}`, `{{hom
 `{{SECRET}}` for each required secret. An unknown placeholder stops `apply` before
 anything is written.
 
-A profile can install tools and write files in your home directory, so only use one you
-trust.
+`bin` is a directory of the profile whose executables are on `PATH` in every shell and
+in graphical apps, read from the profile clone, so a command added to the profile is there
+after the next `apply`. The `shell` files are sourced once by each interactive zsh or bash,
+for aliases and functions: write them in code both shells understand.
+
+A profile can install tools, write files in your home directory and run commands in
+your shells, so only use one you trust.
 
 ## Banner
 
