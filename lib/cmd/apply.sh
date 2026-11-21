@@ -95,7 +95,7 @@ cmd_apply() {
   yq_ensure
   config_load
   env_ensure
-  profile_sync "$CFG_PROFILE"
+  profile_sync "$CFG_PROFILE" "$CFG_PROFILE_BRANCH"
   profile_load "$CFG_PROFILE"
   env_seed "$PROFILE_SECRETS"
 

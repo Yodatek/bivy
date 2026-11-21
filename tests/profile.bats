@@ -263,3 +263,54 @@ target = ".out/with space/b"' 'a=first' 'b=second'
   run bivy apply
   [ "$status" -eq 0 ]
 }
+
+@test "a profile branch is cloned; changing it or removing it gives a new clone" {
+  make_custom_profile "$PROFILE" '[tools]
+jq = "1.7.1"'
+  git -C "$PROFILE" switch --quiet -c alt
+  printf '[secrets]\nrequired = ["ALT_SECRET"]\n' >"$PROFILE/profile.toml"
+  commit_all "$PROFILE"
+  git -C "$PROFILE" switch --quiet main
+  local clone=$HOME/.local/state/bivy/profile
+
+  write_config "$CONFIG" "$PROFILE"
+  printf 'profile_branch = "alt"\n' >>"$CONFIG"
+  run bivy init --config "$CONFIG"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"ALT_SECRET"* ]]
+  [ "$(git -C "$clone" rev-parse --abbrev-ref HEAD)" = alt ]
+
+  write_config "$CONFIG" "$PROFILE"
+  run bivy init --config "$CONFIG"
+  [ "$status" -eq 0 ]
+  [ "$(git -C "$clone" rev-parse --abbrev-ref HEAD)" = main ]
+  [[ "$output" != *"ALT_SECRET"* ]]
+}
+
+@test "a profile branch that does not exist stops init" {
+  make_custom_profile "$PROFILE" '[tools]
+jq = "1.7.1"'
+  write_config "$CONFIG" "$PROFILE"
+  printf 'profile_branch = "nope"\n' >>"$CONFIG"
+  run bivy init --config "$CONFIG"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"could not clone the profile"*"branch nope"* ]]
+}
+
+@test "invalid profile_branch values are refused" {
+  local value
+  for value in '"-x"' '"a b"' '"a..b"' '3'; do
+    write_config "$CONFIG" "$PROFILE"
+    printf 'profile_branch = %s\n' "$value" >>"$CONFIG"
+    run bivy init --config "$CONFIG"
+    [ "$status" -ne 0 ] || {
+      echo "accepted: $value"
+      return 1
+    }
+  done
+  write_config "$CONFIG"
+  printf 'profile_branch = "main"\n' >>"$CONFIG"
+  run bivy init --config "$CONFIG"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"profile_branch needs a profile"* ]]
+}

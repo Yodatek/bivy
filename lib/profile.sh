@@ -9,26 +9,32 @@ PROFILE_PROMPT=""
 
 BIVY_SECRET_RE='^[A-Za-z_][A-Za-z0-9_]*$'
 
+# Clones the profile on its default branch, or on the branch given. The clone keeps
+# the branch it was asked for, so that a new branch, or none, gives a new clone.
 profile_clone() {
-  local url=$1 tmp
+  local url=$1 branch=${2:-} tmp
+  local -a args=()
+  [ -z "$branch" ] || args=(--branch "$branch")
   tmp=$(mktemp -d "$BIVY_STATE_DIR/profile-clone.XXXXXX") || die "cannot write in $BIVY_STATE_DIR"
-  if ! git clone --quiet -- "$url" "$tmp/profile" </dev/null; then
+  if ! git clone --quiet ${args[@]+"${args[@]}"} -- "$url" "$tmp/profile" </dev/null ||
+    ! git -C "$tmp/profile" config bivy.branch "$branch"; then
     rm -rf "$tmp"
-    die "could not clone the profile: $url"
+    die "could not clone the profile: $url${branch:+, branch $branch}"
   fi
   rm -rf "$BIVY_PROFILE_DIR"
   mv "$tmp/profile" "$BIVY_PROFILE_DIR"
   rm -rf "$tmp"
-  info "cloned profile $url"
+  info "cloned profile $url${branch:+, branch $branch}"
 }
 
 # An unreachable remote must not block a machine that already has its profile.
 profile_sync() {
-  local url=$1 current
+  local url=$1 branch=${2:-} current current_branch
   [ -n "$url" ] || return 0
   current=$(git -C "$BIVY_PROFILE_DIR" remote get-url origin 2>/dev/null) || current=""
-  if [ "$current" != "$url" ]; then
-    profile_clone "$url"
+  current_branch=$(git -C "$BIVY_PROFILE_DIR" config --get bivy.branch 2>/dev/null) || current_branch=""
+  if [ "$current" != "$url" ] || [ "$current_branch" != "$branch" ]; then
+    profile_clone "$url" "$branch"
   elif ! git -C "$BIVY_PROFILE_DIR" pull --quiet --ff-only </dev/null; then
     warn "could not update the profile, using the local copy"
   fi

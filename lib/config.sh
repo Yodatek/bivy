@@ -5,6 +5,7 @@
 CFG_NAME=""
 CFG_EMAIL=""
 CFG_PROFILE=""
+CFG_PROFILE_BRANCH=""
 CFG_TOOLS=""
 CFG_IDENTITIES=""
 CFG_BANNER=true
@@ -162,9 +163,15 @@ config_read() {
   CFG_NAME=$(toml_string "$file" name) || exit 1
   CFG_EMAIL=$(toml_string "$file" email) || exit 1
   CFG_PROFILE=$(toml_string "$file" profile) || exit 1
+  CFG_PROFILE_BRANCH=$(toml_string "$file" profile_branch) || exit 1
   CFG_TOOLS=$(toml_tools "$file") || exit 1
   valid_name "$CFG_NAME" || die "$file: name is required"
   valid_email "$CFG_EMAIL" || die "$file: email is not a valid address"
+  if [ -n "$CFG_PROFILE_BRANCH" ]; then
+    [ -n "$CFG_PROFILE" ] || die "$file: profile_branch needs a profile"
+    [[ "$CFG_PROFILE_BRANCH" =~ ^[A-Za-z0-9_][A-Za-z0-9._/-]*$ ]] && [[ "$CFG_PROFILE_BRANCH" != *..* ]] ||
+      die "$file: invalid profile_branch: $CFG_PROFILE_BRANCH"
+  fi
   problem=$(profile_url_problem "$CFG_PROFILE")
   [ -z "$problem" ] || die "$file: $problem"
   CFG_IDENTITIES=$(toml_identities "$file") || exit 1

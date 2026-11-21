@@ -41,6 +41,7 @@ then offers to configure the machine.
 name = "Ada Lovelace"
 email = "ada@example.org"
 profile = "git@example.org:me/my-profile.git"
+profile_branch = "main" # optional: a branch of the profile repository, else its default
 
 [tools]            # optional, overrides the profile
 node = "22"

@@ -186,7 +186,7 @@ doctor_check_profile() {
     return 0
   fi
   profile_load "$CFG_PROFILE"
-  [ -z "$CFG_PROFILE" ] || doctor_ok "profile $CFG_PROFILE"
+  [ -z "$CFG_PROFILE" ] || doctor_ok "profile $CFG_PROFILE${CFG_PROFILE_BRANCH:+, branch $CFG_PROFILE_BRANCH}"
 
   missing=$(env_missing "$PROFILE_SECRETS")
   if [ -n "$missing" ]; then
