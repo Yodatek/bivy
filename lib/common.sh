@@ -8,6 +8,8 @@ BIVY_BACKUP_DIR=""
 BIVY_WRITTEN=0
 BIVY_UNCHANGED=0
 BIVY_BACKED_UP=0
+# The files this run created, one per line: they have no original to back up.
+BIVY_CREATED=$'\n'
 ANSWER=""
 
 # Marks the lines bivy owns in a file it shares with the user. Both the shell and
@@ -110,6 +112,10 @@ tty_ask() {
 
 backup_file() {
   local path=$1 mode=${2:-keep-link} rel dest
+  # A file this run created has no original to keep.
+  case "$BIVY_CREATED" in
+    *$'\n'"$path"$'\n'*) return 0 ;;
+  esac
   if [ -z "$BIVY_BACKUP_DIR" ]; then
     BIVY_BACKUP_DIR="$BIVY_BACKUP_ROOT/$(date +%Y%m%d-%H%M%S).$$"
   fi
@@ -148,6 +154,8 @@ install_file() {
   fi
   if [ -e "$target" ] || [ -L "$target" ]; then
     backup_file "$target"
+  else
+    BIVY_CREATED="$BIVY_CREATED$target"$'\n'
   fi
   parent=$(dirname "$target")
   mkdir -p "$parent" || die "cannot create $parent"
@@ -177,6 +185,7 @@ block_apply() {
 
   if [ ! -e "$file" ]; then
     printf '%s\n' "$block" >"$file" || die "cannot write $file"
+    BIVY_CREATED="$BIVY_CREATED$file"$'\n'
     rm -f "$tmp"
     BIVY_WRITTEN=$((BIVY_WRITTEN + 1))
     info "wrote $file"

@@ -40,6 +40,14 @@ setup() {
   [ "$BIVY_BACKED_UP" -eq 0 ]
 }
 
+@test "a file the run created is not backed up when its second block goes in" {
+  shell_block_apply "$FILE"
+  shell_block_apply "$FILE" interactive bottom interactive
+  grep -qxF '# >>> bivy interactive >>>' "$FILE"
+  [ "$BIVY_BACKED_UP" -eq 0 ]
+  [ ! -e "$BIVY_BACKUP_DIR/.bashrc" ]
+}
+
 @test "the original is backed up before the first change" {
   printf '%s' "$CONTENT" >"$FILE"
   shell_block_apply "$FILE"
