@@ -8,6 +8,7 @@ CFG_PROFILE=""
 CFG_PROFILE_BRANCH=""
 CFG_TOOLS=""
 CFG_IDENTITIES=""
+CFG_PACKAGES=""
 CFG_BANNER=true
 CFG_PROMPT=""
 BIVY_STARSHIP_TOOL="starship@1.27.0"
@@ -177,6 +178,7 @@ config_read() {
   CFG_IDENTITIES=$(toml_identities "$file") || exit 1
   CFG_BANNER=$(toml_bool "$file" banner true) || exit 1
   CFG_PROMPT=$(toml_prompt "$file") || exit 1
+  CFG_PACKAGES=$(toml_packages "$file") || exit 1
 }
 
 config_load() {

@@ -72,6 +72,8 @@ load_libs() {
   . "$BIVY_ROOT/lib/gui.sh"
   # shellcheck source=lib/git.sh
   . "$BIVY_ROOT/lib/git.sh"
+  # shellcheck source=lib/packages.sh
+  . "$BIVY_ROOT/lib/packages.sh"
   bivy_init_paths
   bivy_load_os
   bivy_ensure_dirs

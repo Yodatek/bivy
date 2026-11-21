@@ -8,6 +8,7 @@ PROFILE_FILES=""
 PROFILE_PROMPT=""
 PROFILE_BIN=""
 PROFILE_SHELL=""
+PROFILE_PACKAGES=""
 
 BIVY_SECRET_RE='^[A-Za-z_][A-Za-z0-9_]*$'
 
@@ -87,6 +88,7 @@ profile_load() {
   PROFILE_PROMPT=""
   PROFILE_BIN=""
   PROFILE_SHELL=""
+  PROFILE_PACKAGES=""
   [ -n "$url" ] || return 0
   file="$BIVY_PROFILE_DIR/profile.toml"
   [ -f "$file" ] || die "the profile has no profile.toml: $url"
@@ -100,6 +102,7 @@ profile_load() {
 
   PROFILE_TOOLS=$(toml_tools "$file") || exit 1
   PROFILE_PROMPT=$(toml_prompt "$file") || exit 1
+  PROFILE_PACKAGES=$(toml_packages "$file") || exit 1
 
   # bin: a directory of commands put on PATH, read in place from the clone.
   PROFILE_BIN=$(toml_string "$file" bin) || exit 1

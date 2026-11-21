@@ -80,6 +80,12 @@ required = ["EXAMPLE_API_TOKEN"]   # read from ~/.config/bivy/.env
 jq = "1.7.1"
 java = ["21", "25"]                 # all installed, the first one is the default
 
+[packages]                          # what mise does not install
+brew = ["podman"]                   # macOS formulas
+cask = ["iterm2"]                   # macOS apps
+apt = ["podman"]                    # Debian, Ubuntu, WSL2
+dnf = ["podman"]                    # Fedora, RHEL
+
 [[files]]
 source = "files/example.conf.tmpl"          # relative to the profile
 target = ".config/bivy-example/example.conf" # relative to the home directory
@@ -88,6 +94,11 @@ target = ".config/bivy-example/example.conf" # relative to the home directory
 Files are written in mode 600. Templates can use `{{name}}`, `{{email}}`, `{{home}}` and
 `{{SECRET}}` for each required secret. An unknown placeholder stops `apply` before
 anything is written.
+
+Each `[packages]` list is used where its manager exists, so one profile serves macOS and
+Linux. `apply` installs only what is missing and never removes anything; `apt` and `dnf`
+go through `sudo`. A package that fails to install is a warning, and `doctor` lists the
+missing ones. `config.toml` can have a `[packages]` table too, added to the profile's.
 
 `bin` is a directory of the profile whose executables are on `PATH` in every shell and
 in graphical apps, read from the profile clone, so a command added to the profile is there

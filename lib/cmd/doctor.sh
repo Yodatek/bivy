@@ -50,6 +50,23 @@ doctor_check_shadowed() {
     doctor_warn "in '$shell_cmd $flags', $(shims_shadowed_summary "$shadowed") before the mise shims"
 }
 
+doctor_check_packages() {
+  local wanted missing names count
+  wanted=$(packages_wanted)
+  [ -n "$wanted" ] || return 0
+  missing=$(packages_missing "$wanted")
+  names=$(printf '%s\n' "$missing" | awk -F'\t' '$1 == "none" { print $2 }' | tr '\n' ' ')
+  [ -z "$names" ] || doctor_warn "no package manager here for: $names"
+  names=$(printf '%s\n' "$missing" | awk -F'\t' 'NF == 2 && $1 != "none" { print $1 ":" $2 }' | tr '\n' ' ')
+  names=${names% }
+  if [ -n "$names" ]; then
+    doctor_fail "packages not installed: $names; run: bivy apply"
+  else
+    count=$(printf '%s\n' "$wanted" | awk 'NF' | wc -l | tr -d ' ')
+    doctor_ok "packages: the profile and machine lists are installed ($count names)"
+  fi
+}
+
 doctor_check_prompt() {
   [ "$(prompt_choice)" = starship ] || return 0
   if [ -n "$(prompt_starship_path)" ]; then
@@ -245,6 +262,7 @@ cmd_doctor() {
     doctor_check_profile
     doctor_check_git
     doctor_check_prompt
+    doctor_check_packages
   fi
 
   doctor_check_env_file

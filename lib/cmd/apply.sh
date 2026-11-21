@@ -107,6 +107,7 @@ cmd_apply() {
 
   apply_render_files
   apply_tools
+  packages_apply
   shell_write_env
   shell_write_interactive
   shell_apply_blocks

@@ -25,6 +25,8 @@ BIVY_ROOT=$(cd -P "$(dirname "$src")/.." && pwd)
 . "$BIVY_ROOT/lib/gui.sh"
 # shellcheck source=lib/git.sh
 . "$BIVY_ROOT/lib/git.sh"
+# shellcheck source=lib/packages.sh
+. "$BIVY_ROOT/lib/packages.sh"
 
 usage() {
   cat <<'EOF'
