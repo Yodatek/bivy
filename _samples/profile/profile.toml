@@ -15,14 +15,17 @@ shell = ["shell/aliases.sh"]
 [secrets]
 required = ["SAMPLE_API_TOKEN"]
 
-# Tools that mise installs. A list installs every version, the first one is the
-# default.
+# Tools that mise installs, the same way on every system. A name comes from the
+# mise registry; another tool names its backend: npm, pipx, cargo, aqua, github...
+# A list installs every version, the first one is the default.
 [tools]
 jq = "1.7.1"
 node = ["22", "20"]
+"npm:prettier" = "3" # a backend tool; npm comes with node above
 
-# What mise does not install. Each list is used where its manager exists, so one
-# profile serves macOS and Linux. Missing packages are installed, none removed.
+# Only what mise cannot install, such as tree here. Each list is used where its
+# manager exists, so one profile serves macOS and Linux. Missing packages are
+# installed, none removed.
 [packages]
 brew = ["tree"]      # macOS formulas
 # cask = ["iterm2"]  # macOS apps, left out so that trying the sample adds none

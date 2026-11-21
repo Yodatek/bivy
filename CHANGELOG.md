@@ -6,6 +6,10 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The README and the sample profile install tools through mise, its registry or a backend such as `npm:` or `pipx:`, and keep `[packages]` for what mise cannot install.
+
 ## [0.1.0] - 2026-11-21
 
 First release.

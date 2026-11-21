@@ -10,8 +10,8 @@ that repository in `config.toml`.
 | `bin` | Puts `sample-hello` on `PATH`. |
 | `shell` | Adds the `ll` alias and the `mkcd` function to interactive shells. |
 | `[secrets]` | Needs `SAMPLE_API_TOKEN` in `~/.config/povy/.env`. |
-| `[tools]` | Installs jq, and Node.js 22 and 20 with 22 as the default. |
-| `[packages]` | Installs `tree` with brew, apt or dnf, whichever the machine has. |
+| `[tools]` | Installs jq, Node.js 22 and 20 with 22 as the default, and Prettier from npm. |
+| `[packages]` | Installs `tree`, which mise has no backend for, with brew, apt or dnf. |
 | `[[files]]` | Writes `~/.config/povy-sample/sample.conf` and `~/.config/starship.toml`. |
 
 ## Try it

@@ -83,11 +83,12 @@ shell = ["shell/aliases.sh"]        # optional, sourced by interactive shells
 [secrets]
 required = ["EXAMPLE_API_TOKEN"]   # read from ~/.config/povy/.env
 
-[tools]
+[tools]                             # any tool mise installs, see below
 jq = "1.7.1"
 java = ["21", "25"]                 # all installed, the first one is the default
+"pipx:ansible-lint" = "26"          # a mise backend: pipx, npm, cargo, aqua, github...
 
-[packages]                          # what mise does not install
+[packages]                          # only what mise cannot install
 brew = ["podman"]                   # macOS formulas
 cask = ["iterm2"]                   # macOS apps
 apt = ["podman"]                    # Debian, Ubuntu, WSL2
@@ -98,11 +99,20 @@ source = "files/example.conf.tmpl"          # relative to the profile
 target = ".config/povy-example/example.conf" # relative to the home directory
 ```
 
+Tools come first from mise. A name such as `jq` or `ansible` comes from the
+[mise registry](https://mise.jdx.dev/registry.html), and any other tool can name its
+backend, such as `"npm:prettier"` or `"pipx:ansible-lint"`. mise installs them the same
+way on every system, in your home directory and without `sudo`, so prefer them to
+`[packages]`. Tools of the pipx backend need `uv` in `[tools]`, and a `python` version
+they support. The registry ships with mise, so keep mise up to date: an old mise
+may not know a tool, or install it another way.
+
 Files are written in mode 600. Templates can use `{{name}}`, `{{email}}`, `{{home}}` and
 `{{SECRET}}` for each required secret. An unknown placeholder stops `apply` before
 anything is written.
 
-Each `[packages]` list is used where its manager exists, so one profile serves macOS and
+`[packages]` is for what mise cannot install, such as services, virtual machines and
+graphical apps. Each list is used where its manager exists, so one profile serves macOS and
 Linux. `apply` installs only what is missing and never removes anything; `apt` and `dnf`
 go through `sudo`. A package that fails to install is a warning, and `doctor` lists the
 missing ones. `config.toml` can have a `[packages]` table too, added to the profile's.

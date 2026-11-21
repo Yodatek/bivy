@@ -26,6 +26,7 @@ setup() {
   [ -x "$POVY_PROFILE_ROOT/$PROFILE_BIN/sample-hello" ]
   [ -n "$PROFILE_SHELL" ] && [ -n "$PROFILE_SECRETS" ] && [ -n "$PROFILE_PACKAGES" ]
   [[ "$PROFILE_TOOLS" == *$'node\t22 20'* ]]
+  [[ "$PROFILE_TOOLS" == *$'npm:prettier\t3'* ]]
   # Every template renders: none has an unknown placeholder.
   while IFS=$'\t' read -r source target; do
     [ -n "$source" ] || continue
