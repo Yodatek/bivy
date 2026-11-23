@@ -8,6 +8,9 @@ security issues privately, as [SECURITY.md](SECURITY.md) explains, never in a pu
 
 ## Ground rules
 
+- povy does only what mise leaves out. Before adding a feature, check what mise and
+  `mise bootstrap` already do; when mise grows a feature that povy has, povy drops its
+  own.
 - The engine stays generic. Nothing in it names a person, a company, an internal host
   or an account. What a team needs goes in its profile; the engine only gains a key when
   several profiles would use it.

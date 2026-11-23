@@ -1,14 +1,9 @@
 # Machine configuration: config.toml and the .env secrets file, read with the same
 # rules as the bash engine. Neither file is ever versioned, and .env is parsed, never
-# run.
+# run. Tools, packages and the prompt are mise configuration now, not povy's.
 
-$script:PovyStarshipTool = 'starship@1.27.0'
 $script:PovyConfigHeader = '# Machine configuration for povy. Never versioned.'
-$script:PovyPackageManagers = @('brew', 'cask', 'apt', 'dnf', 'winget')
-$script:PovyToolNameRe = '^[A-Za-z0-9@][A-Za-z0-9@._:/+-]*$'
-$script:PovyToolVersionRe = '^[A-Za-z0-9][A-Za-z0-9._:+-]*$'
-$script:PovyPackageRe = '^[A-Za-z0-9][A-Za-z0-9._+@/-]*$'
-$script:PovyBranchRe = '^[A-Za-z0-9_][A-Za-z0-9._/-]*$'
+$script:PovyRefRe = '^[A-Za-z0-9_][A-Za-z0-9._/-]*$'
 $script:Cfg = $null
 
 function Test-PovyName([string]$Value) {
@@ -54,12 +49,6 @@ function Get-PovyTomlBool($Data, [string]$Key, [bool]$Default, [string]$File) {
     return $Data[$Key]
 }
 
-function Get-PovyTomlPrompt($Data, [string]$File) {
-    $value = Get-PovyTomlString $Data 'prompt' $File
-    if ($value -notin @('', 'starship', 'none')) { Stop-Povy "${File}: prompt must be starship or none" }
-    return $value
-}
-
 function Get-PovyTomlTable($Data, [string]$Key, [string]$File, [string]$Hint) {
     if (-not $Data.Contains($Key) -or $null -eq $Data[$Key]) { return [ordered]@{} }
     $value = $Data[$Key]
@@ -73,49 +62,6 @@ function Test-PovyStringList($Value) {
         if ($item -isnot [string]) { return $false }
     }
     return $true
-}
-
-# Tools as an ordered table of name to versions. A tool takes one version or a list,
-# all installed, the first one the default.
-function ConvertTo-PovyTool($Data, [string]$File) {
-    $tools = [ordered]@{}
-    $table = Get-PovyTomlTable $Data 'tools' $File '[tools]'
-    foreach ($name in $table.Keys) {
-        if ($name -cnotmatch $script:PovyToolNameRe) { Stop-Povy "${File}: invalid tool name: $name" }
-        $value = $table[$name]
-        if ($value -is [int] -or $value -is [long]) { $value = [string]$value }
-        if ($value -is [string]) {
-            $versions = @($value)
-        } elseif ((Test-PovyStringList $value) -and $value.Count -gt 0) {
-            $versions = @($value)
-        } else {
-            Stop-Povy "${File}: invalid version list for $name"
-        }
-        foreach ($version in $versions) {
-            if ($version -cnotmatch $script:PovyToolVersionRe) { Stop-Povy "${File}: invalid version for $name" }
-        }
-        $tools[$name] = [string[]]$versions
-    }
-    return $tools
-}
-
-# Packages as a list of @{ Manager; Name }.
-function ConvertTo-PovyPackage($Data, [string]$File) {
-    $packages = [System.Collections.Generic.List[object]]::new()
-    $table = Get-PovyTomlTable $Data 'packages' $File '[packages]'
-    foreach ($manager in $table.Keys) {
-        if ($manager -notin $script:PovyPackageManagers) {
-            Stop-Povy "${File}: unknown package manager: $manager (use $($script:PovyPackageManagers -join ' '))"
-        }
-        $names = $table[$manager]
-        if ($names -isnot [System.Collections.IList] -or $names -is [string]) { Stop-Povy "${File}: packages.$manager must be a list" }
-        if (-not (Test-PovyStringList $names)) { Stop-Povy "${File}: packages.$manager must be a list of names" }
-        foreach ($name in $names) {
-            if ($name -cnotmatch $script:PovyPackageRe) { Stop-Povy "${File}: invalid package name for ${manager}: $name" }
-            $packages.Add([pscustomobject]@{ Manager = $manager; Name = $name })
-        }
-    }
-    return , $packages.ToArray()
 }
 
 # A directory for includeIf "gitdir/i:", under ~/, absolute, or on a drive, with
@@ -152,20 +98,38 @@ function ConvertTo-PovyIdentity($Data, [string]$File, [string]$DefaultName) {
     return , $identities.ToArray()
 }
 
+# Settings that povy 0.1 read and that belong to mise now. A config that still has
+# them stops with the way out, rather than having them ignored.
+function Assert-PovyNoLegacyKey($Data, [string]$File) {
+    $legacy = @('tools', 'packages', 'prompt' | Where-Object { $Data.Contains($_) })
+    if ($legacy.Count -gt 0) {
+        Stop-Povy "${File}: $($legacy -join ' '): since povy 0.2, tools, packages and the prompt are mise configuration; move them to ~/.config/mise/config.toml or to the profile's team.toml and mise.toml"
+    }
+}
+
 function Read-PovyConfig([string]$File) {
     $data = Read-PovyToml $File
+    Assert-PovyNoLegacyKey $data $File
     $cfg = [ordered]@{}
     $cfg.Name = Get-PovyTomlString $data 'name' $File
     $cfg.Email = Get-PovyTomlString $data 'email' $File
     $cfg.Profile = Get-PovyTomlString $data 'profile' $File
-    $cfg.ProfileBranch = Get-PovyTomlString $data 'profile_branch' $File
+    $cfg.ProfileRef = Get-PovyTomlString $data 'profile_ref' $File
+    $branch = Get-PovyTomlString $data 'profile_branch' $File
     $cfg.ProfilePath = (Get-PovyTomlString $data 'profile_path' $File).TrimEnd('/')
     if (-not (Test-PovyName $cfg.Name)) { Stop-Povy "${File}: name is required" }
     if (-not (Test-PovyEmail $cfg.Email)) { Stop-Povy "${File}: email is not a valid address" }
-    if ($cfg.ProfileBranch) {
-        if (-not $cfg.Profile) { Stop-Povy "${File}: profile_branch needs a profile" }
-        if ($cfg.ProfileBranch -cnotmatch $script:PovyBranchRe -or $cfg.ProfileBranch.Contains('..')) {
-            Stop-Povy "${File}: invalid profile_branch: $($cfg.ProfileBranch)"
+    # profile_branch is the name povy 0.1 used; profile_ref also takes a tag or a commit.
+    $refKey = 'profile_ref'
+    if ($branch) {
+        if ($cfg.ProfileRef) { Stop-Povy "${File}: set profile_ref only, profile_branch is its old name" }
+        $cfg.ProfileRef = $branch
+        $refKey = 'profile_branch'
+    }
+    if ($cfg.ProfileRef) {
+        if (-not $cfg.Profile) { Stop-Povy "${File}: $refKey needs a profile" }
+        if ($cfg.ProfileRef -cnotmatch $script:PovyRefRe -or $cfg.ProfileRef.Contains('..')) {
+            Stop-Povy "${File}: invalid ${refKey}: $($cfg.ProfileRef)"
         }
     }
     if ($cfg.ProfilePath) {
@@ -174,11 +138,8 @@ function Read-PovyConfig([string]$File) {
     }
     $problem = Get-PovyProfileUrlProblem $cfg.Profile
     if ($problem) { Stop-Povy "${File}: $problem" }
-    $cfg.Tools = ConvertTo-PovyTool $data $File
     $cfg.Identities = ConvertTo-PovyIdentity $data $File $cfg.Name
     $cfg.Banner = Get-PovyTomlBool $data 'banner' $true $File
-    $cfg.Prompt = Get-PovyTomlPrompt $data $File
-    $cfg.Packages = ConvertTo-PovyPackage $data $File
     $script:Cfg = $cfg
 }
 
@@ -194,7 +155,7 @@ function ConvertTo-PovyTomlString([string]$Value) {
 }
 
 # Rewrites the three answers of povy init. The rest of an existing file, such as
-# [tools] or [[identities]], is kept as it is.
+# profile_ref or [[identities]], is kept as it is.
 function Write-PovyConfig([string]$Name, [string]$Email, [string]$ProfileUrl) {
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add($script:PovyConfigHeader)
@@ -260,32 +221,4 @@ function Add-PovyEnvSeed([string[]]$Keys) {
 
 function Get-PovyEnvMissing([string[]]$Keys) {
     return @($Keys | Where-Object { -not (Get-PovyEnvValue $_) })
-}
-
-# The prompt to set: the machine's choice, else the profile's, else none.
-function Get-PovyPromptChoice {
-    $choice = if ($script:Cfg.Prompt) { $script:Cfg.Prompt } else { $script:Prof.Prompt }
-    if (-not $choice) { return 'none' }
-    return $choice
-}
-
-# Every tool with its versions and the level that declares it, the last declaration
-# of a name winning: povy itself, then the profile, then the machine. yq is declared
-# because mise makes a shim for every installed tool, and a shim with no configured
-# version fails when called.
-function Get-PovyMergedTool {
-    $merged = [ordered]@{}
-    $add = {
-        param($Name, $Versions, $Level)
-        $merged[$Name] = [pscustomobject]@{ Name = $Name; Versions = [string[]]$Versions; Level = $Level }
-    }
-    $yq = $script:PovyYqTool.Split('@')
-    & $add $yq[0] @($yq[1]) 'povy'
-    if ((Get-PovyPromptChoice) -eq 'starship') {
-        $starship = $script:PovyStarshipTool.Split('@')
-        & $add $starship[0] @($starship[1]) 'povy'
-    }
-    foreach ($name in $script:Prof.Tools.Keys) { & $add $name $script:Prof.Tools[$name] 'profile' }
-    foreach ($name in $script:Cfg.Tools.Keys) { & $add $name $script:Cfg.Tools[$name] 'machine' }
-    return @($merged.Values)
 }

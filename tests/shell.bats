@@ -10,6 +10,13 @@ setup() {
   CONTENT=$'# stock\ncase $- in *i*) ;; *) return ;; esac\nalias ll="ls -l"\n'
 }
 
+# Writes what apply writes for the shells.
+apply_shell() {
+  shell_write_env
+  shell_write_interactive
+  shell_apply_blocks
+}
+
 @test "a missing file is created with the block alone" {
   shell_block_apply "$FILE"
   [ "$(head -n 1 "$FILE")" = '# >>> povy >>>' ]
@@ -52,6 +59,7 @@ setup() {
   printf '%s' "$CONTENT" >"$FILE"
   shell_block_apply "$FILE"
   [ "$(cat "$POVY_BACKUP_DIR/.bashrc")" = "$(printf '%s' "$CONTENT")" ]
+  [ "$(file_mode "$POVY_BACKUP_DIR/.bashrc")" = 600 ]
 }
 
 @test "a stale block is refreshed in place, without moving" {
@@ -59,7 +67,7 @@ setup() {
   shell_block_apply "$FILE"
   [ "$(head -n 1 "$FILE")" = before ]
   [ "$(tail -n 1 "$FILE")" = after ]
-  ! grep -qxF old "$FILE"
+  ! grep -qxF old "$FILE" || false
   [ "$(grep -cxF '# >>> povy >>>' "$FILE")" -eq 1 ]
 }
 
@@ -98,13 +106,40 @@ setup() {
   [ "$(shell_bash_login_file)" = "$HOME/.bash_profile" ]
 }
 
-@test "ZDOTDIR is honoured" {
+@test "with ZDOTDIR, env goes in ~/.zshenv and in \$ZDOTDIR/.zshenv, the other zsh files in ZDOTDIR" {
+  command -v zsh >/dev/null || skip "zsh is not installed"
+  local files=$BATS_TEST_TMPDIR/files
   export ZDOTDIR=$HOME/zdot
-  run shell_startup_files
-  if command -v zsh >/dev/null; then
-    [[ "$output" == *"$HOME/zdot/.zshenv"* ]]
-  fi
-  [[ "$output" != *"$HOME/.zshenv"* ]]
+  shell_startup_files >"$files"
+  grep -qxF "$HOME/.zshenv"$'\tenv\ttop\t' "$files"
+  grep -qxF "$ZDOTDIR/.zshenv"$'\tenv\ttop\t' "$files"
+  grep -qxF "$ZDOTDIR/.zprofile"$'\tenv\tbottom\t' "$files"
+  grep -qxF "$ZDOTDIR/.zshrc"$'\tinteractive\tbottom\t' "$files"
+  ! grep -qF "$HOME/.zprofile" "$files" || false
+  ! grep -qF "$HOME/.zshrc" "$files" || false
+  # A ZDOTDIR that is HOME gives one .zshenv.
+  [ "$(ZDOTDIR=$HOME shell_startup_files | grep -c '/\.zshenv')" -eq 1 ]
+}
+
+@test "with ZDOTDIR, zsh has the shims first whether ZDOTDIR is set when it starts or not" {
+  command -v zsh >/dev/null || skip "zsh is not installed"
+  local start
+  export ZDOTDIR=$HOME/zdot
+  mkdir -p "$ZDOTDIR"
+  # The usual setup: ~/.zshenv moves the other files to ZDOTDIR.
+  printf 'export ZDOTDIR="$HOME/zdot"\n' >"$HOME/.zshenv"
+  apply_shell
+  grep -qF '.config/povy/env.sh' "$HOME/.zshenv"
+  grep -qF '.config/povy/env.sh' "$ZDOTDIR/.zshenv"
+  [ "$(tail -n 1 "$HOME/.zshenv")" = 'export ZDOTDIR="$HOME/zdot"' ]
+  for start in "ZDOTDIR=$ZDOTDIR zsh -c" "ZDOTDIR=$ZDOTDIR zsh -lc" "zsh -c" "zsh -lc"; do
+    # shellcheck disable=SC2086 # The variables and the shell to start.
+    run env -i HOME="$HOME" PATH=/usr/bin:/bin $start 'printf "%s" "$PATH"'
+    [[ "$output" == "$POVY_SHIMS_DIR:"* ]] || {
+      echo "no shims first with $start: $output"
+      return 1
+    }
+  done
 }
 
 @test "paths are written with \$HOME, and other paths are quoted safely" {
@@ -114,7 +149,6 @@ setup() {
 
 env_sh_path() {
   local shell_cmd=$1 start=$2
-  env -i HOME="$HOME" PATH="$start" /bin/sh -c "command -v $shell_cmd >/dev/null" 2>/dev/null
   env -i HOME="$HOME" PATH="$start" "$(command -v "$shell_cmd")" -c ". \"$POVY_ENV_SH\"; printf '%s' \"\$PATH\""
 }
 
@@ -129,22 +163,75 @@ env_sh_path() {
   done
 }
 
+@test "env.sh puts the profile's commands between the shims and ~/.local/bin" {
+  local shell_cmd s="$POVY_SHIMS_DIR" p="$HOME/.local/state/povy/profile/bin" b="$POVY_LOCAL_BIN"
+  PROFILE_BIN=$p
+  shell_write_env
+  grep -qxF '__povy_path_front "$HOME/.local/state/povy/profile/bin"' "$POVY_ENV_SH"
+  for shell_cmd in sh bash zsh dash; do
+    command -v "$shell_cmd" >/dev/null || continue
+    [ "$(env_sh_path "$shell_cmd" /usr/bin:/bin)" = "$s:$p:$b:/usr/bin:/bin" ]
+    [ "$(env_sh_path "$shell_cmd" "$b:/usr/bin:$p:$s")" = "$s:$p:$b:/usr/bin" ]
+  done
+}
+
 @test "env.sh leaves no helper behind" {
   shell_write_env
   run env -i HOME="$HOME" PATH=/usr/bin:/bin bash -c ". \"$POVY_ENV_SH\"; declare -F __povy_path_front; echo \"[\${__povy_p:-}]\""
   [ "$output" = '[]' ]
 }
 
+@test "interactive.sh only shows the banner; with banner = false, it does nothing" {
+  CFG_BANNER=true
+  shell_write_interactive
+  [ "$(grep -c 'banner --auto' "$POVY_INTERACTIVE_SH")" -eq 1 ]
+  [ "$(grep -cv '^#' "$POVY_INTERACTIVE_SH")" -eq 5 ]
+  ! grep -qE '(^|[[:space:]])(\.|source|eval) ' "$POVY_INTERACTIVE_SH" || false
+  CFG_BANNER=false
+  shell_write_interactive
+  [ "$(grep -cv '^#' "$POVY_INTERACTIVE_SH")" -eq 0 ]
+}
+
 @test "only the files that interactive shells read load the banner" {
   command -v zsh >/dev/null || skip "zsh is not installed"
   shell_apply_blocks
   grep -qF '.config/povy/env.sh' "$HOME/.zshenv"
-  ! grep -qF 'interactive.sh' "$HOME/.zshenv"
-  ! grep -qF 'interactive.sh' "$HOME/.zprofile"
+  ! grep -qF 'interactive.sh' "$HOME/.zshenv" || false
+  ! grep -qF 'interactive.sh' "$HOME/.zprofile" || false
   grep -qF '.config/povy/interactive.sh' "$HOME/.zshrc"
-  ! grep -qF 'env.sh' "$HOME/.zshrc"
+  ! grep -qF 'env.sh' "$HOME/.zshrc" || false
   grep -qF 'env.sh' "$HOME/.bashrc"
   grep -qF 'interactive.sh' "$HOME/.bashrc"
+}
+
+@test ".bashrc keeps env at the top and gets a named interactive block at the bottom" {
+  printf 'case $- in *i*) ;; *) return ;; esac\nalias ll="ls -l"\n' >"$HOME/.bashrc"
+  apply_shell
+  [ "$(head -n 1 "$HOME/.bashrc")" = '# >>> povy >>>' ]
+  [ "$(tail -n 1 "$HOME/.bashrc")" = '# <<< povy interactive <<<' ]
+  [ "$(awk '/^# <<< povy <<<$/ { exit } { print }' "$HOME/.bashrc" | grep -c interactive.sh)" -eq 0 ]
+}
+
+@test "the earlier layout moves: .zshrc to the end, .bashrc split in two" {
+  command -v zsh >/dev/null || skip "zsh is not installed"
+  printf 'export MINE=1\n' >"$HOME/.zshrc"
+  printf 'export MINE=1\n' >"$HOME/.bashrc"
+  shell_block_apply "$HOME/.zshrc" interactive top
+  shell_block_apply "$HOME/.bashrc" "env interactive" top
+  # A new run: same process and second here, so its backup directory is set apart.
+  POVY_BACKUP_DIR=$BATS_TEST_TMPDIR/second-run
+  apply_shell
+  [ "$(head -n 1 "$HOME/.zshrc")" = 'export MINE=1' ]
+  [ "$(tail -n 1 "$HOME/.zshrc")" = '# <<< povy <<<' ]
+  [ "$(grep -c '^# >>> povy' "$HOME/.zshrc")" -eq 1 ]
+  [ "$(head -n 1 "$HOME/.bashrc")" = '# >>> povy >>>' ]
+  [ "$(tail -n 1 "$HOME/.bashrc")" = '# <<< povy interactive <<<' ]
+  [ "$(grep -c 'interactive.sh' "$HOME/.bashrc")" -eq 1 ]
+  grep -qxF 'export MINE=1' "$HOME/.bashrc"
+  # .bashrc changed twice: its backup is the file as it was before, both parts in one block.
+  local backup=$POVY_BACKUP_DIR/.bashrc
+  ! grep -q '# >>> povy interactive >>>' "$backup" || false
+  grep -q 'interactive.sh' "$backup"
 }
 
 @test "a login file gets the block at the end, after what it adds to PATH" {
@@ -182,5 +269,29 @@ env_sh_path() {
   shell_write_env
   shell_apply_blocks
   run env -i HOME="$HOME" PATH=/usr/bin:/bin zsh -lc 'printf "%s" "$PATH"'
-  [[ "$output" == "$POVY_SHIMS_DIR:"* ]]
+  [[ "$output" == "$POVY_SHIMS_DIR:"* ]] || false
+}
+
+# A tool in the shims, in an install directory of mise and in another directory.
+fake_tool_dirs() {
+  export MISE_DATA_DIR=$BATS_TEST_TMPDIR/mise-data
+  povy_init_paths
+  INSTALLS=$MISE_DATA_DIR/installs/jq/1.7.1/bin
+  OTHER=$HOME/other/installs/jq/bin
+  local dir
+  for dir in "$POVY_SHIMS_DIR" "$INSTALLS" "$OTHER"; do
+    mkdir -p "$dir"
+    printf '#!/bin/sh\n' >"$dir/jq"
+    chmod +x "$dir/jq"
+  done
+}
+
+@test "a directory before the shims hides their commands, unless it is one of mise's installs" {
+  fake_tool_dirs
+  [ -z "$(shims_shadowed "$INSTALLS:$POVY_SHIMS_DIR:/usr/bin" jq)" ]
+  [ "$(shims_shadowed "$INSTALLS:$OTHER:$POVY_SHIMS_DIR" jq)" = "jq"$'\t'"$OTHER" ]
+  [ -z "$(shims_shadowed "$POVY_SHIMS_DIR:$OTHER" jq)" ]
+  # Without the shims on PATH, nothing is hidden.
+  [ -z "$(shims_shadowed "$OTHER:/usr/bin" jq)" ]
+  [ "$(shims_shadowed_summary "jq"$'\t'"$OTHER")" = "~/other/installs/jq/bin hides jq" ]
 }

@@ -25,8 +25,8 @@ POVY_ROOT=$(cd -P "$(dirname "$src")/.." && pwd)
 . "$POVY_ROOT/lib/gui.sh"
 # shellcheck source=lib/git.sh
 . "$POVY_ROOT/lib/git.sh"
-# shellcheck source=lib/packages.sh
-. "$POVY_ROOT/lib/packages.sh"
+# shellcheck source=lib/team.sh
+. "$POVY_ROOT/lib/team.sh"
 
 usage() {
   cat <<'EOF'
@@ -34,11 +34,10 @@ Usage: povy <command>
 
 Commands:
   init [--config <file>]   Write ~/.config/povy/config.toml and .env
-  apply                    Install tools, load shims, set the Git identity,
-                           write profile files
+  apply                    Apply the profile with mise bootstrap, put the tools on
+                           the PATH of every shell and app, set the Git identity
   doctor                   Check the real state; exits 1 if something is wrong
-  banner                   Show the tools, what does not work and the machine load
-  tools                    List each tool, where it is declared and what mise runs
+  banner                   Show the tools and the machine load
   version                  Show the version of povy
   help                     Show this message
 EOF
@@ -48,7 +47,7 @@ command=${1:-help}
 [ $# -eq 0 ] || shift
 
 case "$command" in
-  init | apply | doctor | banner | tools)
+  init | apply | doctor | banner)
     # shellcheck source=/dev/null
     . "$POVY_ROOT/lib/cmd/$command.sh"
     "cmd_$command" "$@"

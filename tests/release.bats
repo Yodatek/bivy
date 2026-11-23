@@ -50,7 +50,7 @@ commit() {
   [ "$output" = "- Older." ]
   run "$RELEASE" notes v9.9.9
   [ "$status" -ne 0 ]
-  [[ "$output" == *"no section for 9.9.9"* ]]
+  [[ "$output" == *"no section for 9.9.9"* ]] || false
   run "$RELEASE" notes 1.2.0
   [ "$status" -ne 0 ]
 }
@@ -62,22 +62,22 @@ commit() {
   [ "$(git -C "$REPO" tag -l --format='%(contents)' v1.2.0)" = $'povy 1.2.0\n\n### Added\n\n- Something new.' ]
   run "$RELEASE" tag v1.2.0
   [ "$status" -ne 0 ]
-  [[ "$output" == *"already exists"* ]]
+  [[ "$output" == *"already exists"* ]] || false
 }
 
 @test "tag refuses a dirty tree, another branch and a main that is not pushed" {
   touch "$REPO/stray"
   run "$RELEASE" tag v1.2.0
-  [[ "$output" == *"not clean"* ]]
+  [[ "$output" == *"not clean"* ]] || false
   rm "$REPO/stray"
   git -C "$REPO" switch --quiet -c side
   run "$RELEASE" tag v1.2.0
-  [[ "$output" == *"tagged on main"* ]]
+  [[ "$output" == *"tagged on main"* ]] || false
   git -C "$REPO" switch --quiet main
   commit unpushed
   run "$RELEASE" tag v1.2.0
-  [[ "$output" == *"differs from origin/main"* ]]
-  ! git -C "$REPO" rev-parse --quiet --verify refs/tags/v1.2.0
+  [[ "$output" == *"differs from origin/main"* ]] || false
+  ! git -C "$REPO" rev-parse --quiet --verify refs/tags/v1.2.0 || false
 }
 
 @test "check accepts an annotated tag on main, and refuses a lightweight one or one off main" {
@@ -86,14 +86,14 @@ commit() {
   [ "$status" -eq 0 ]
   git -C "$REPO" tag v1.1.0
   run "$RELEASE" check v1.1.0
-  [[ "$output" == *"not an annotated tag"* ]]
+  [[ "$output" == *"not an annotated tag"* ]] || false
   git -C "$REPO" tag -d v1.1.0 >/dev/null
   git -C "$REPO" switch --quiet -c side
   commit side
   git -C "$REPO" tag --annotate -m "povy 1.1.0" v1.1.0
   run "$RELEASE" check v1.1.0
   [ "$status" -ne 0 ]
-  [[ "$output" == *"not on main"* ]]
+  [[ "$output" == *"not on main"* ]] || false
 }
 
 @test "povy version follows the annotated release tags of its clone" {
@@ -106,8 +106,8 @@ commit() {
   git -C "$REPO" tag v1.3.0
   [ "$(version)" = "1.2.0-1-g$(git -C "$REPO" rev-parse --short HEAD)" ]
   touch "$REPO/CHANGELOG.md" && echo >>"$REPO/CHANGELOG.md"
-  [[ "$(version)" == *-dirty ]]
+  [[ "$(version)" == *-dirty ]] || false
   run povy --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "povy "?* ]]
+  [[ "$output" == "povy "?* ]] || false
 }

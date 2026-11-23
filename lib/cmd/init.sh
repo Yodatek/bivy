@@ -64,7 +64,7 @@ init_edit_env() {
 }
 
 cmd_init() {
-  local config_file="" interactive=1 missing
+  local config_file="" interactive=1 missing names
   while [ $# -gt 0 ]; do
     case "$1" in
       --config)
@@ -81,6 +81,7 @@ cmd_init() {
   povy_load_os
   os_preflight
   povy_ensure_dirs
+  mise_require_recent
   yq_ensure
 
   if [ "$interactive" -eq 1 ]; then
@@ -91,15 +92,17 @@ cmd_init() {
 
   env_ensure
   config_load
-  profile_sync "$CFG_PROFILE" "$CFG_PROFILE_BRANCH"
+  profile_sync "$CFG_PROFILE" "$CFG_PROFILE_REF"
   profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH"
-  env_seed "$PROFILE_SECRETS"
+  team_trust
+  names=$(team_secret_names)
+  env_seed "$names"
 
-  missing=$(env_missing "$PROFILE_SECRETS")
+  missing=$(team_secrets_missing "$names")
   if [ -n "$missing" ] && [ "$interactive" -eq 1 ]; then
     info "The profile needs secrets; opening $POVY_ENV_FILE"
     init_edit_env
-    missing=$(env_missing "$PROFILE_SECRETS")
+    missing=$(team_secrets_missing "$names")
   fi
   if [ -n "$missing" ]; then
     warn "fill these secrets in $POVY_ENV_FILE before povy apply:"

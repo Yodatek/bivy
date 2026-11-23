@@ -33,8 +33,8 @@ run_piped() {
     stub_uname "$name"
     run_piped "$STUBS:$PATH"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Windows is not supported"* ]]
-    [[ "$output" == *"wsl --install"* ]]
+    [[ "$output" == *"Windows is not supported"* ]] || false
+    [[ "$output" == *"wsl --install"* ]] || false
   done
   [ ! -e "$HOME/.local/share/povy" ]
 }
@@ -45,14 +45,14 @@ run_piped() {
   export POVY_PROC_VERSION=$BATS_TEST_TMPDIR/proc
   run_piped "$STUBS:$PATH"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"WSL1 is not supported"* ]]
+  [[ "$output" == *"WSL1 is not supported"* ]] || false
 }
 
 @test "an unknown system is refused" {
   stub_uname SunOS
   run_piped "$STUBS:$PATH"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"unsupported system"* ]]
+  [[ "$output" == *"unsupported system"* ]] || false
 }
 
 @test "the copy of the detection in bootstrap matches the engine" {
@@ -67,11 +67,11 @@ run_piped() {
   [ "$status" -eq 0 ]
   [ -L "$HOME/.local/bin/povy" ]
   [ -f "$HOME/.local/share/povy/bin/povy" ]
-  [[ "$output" == *"Next:"* ]]
+  [[ "$output" == *"Next:"* ]] || false
   [ ! -e "$HOME/.config/povy/config.toml" ]
   run "$HOME/.local/bin/povy" help
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Usage: povy"* ]]
+  [[ "$output" == *"Usage: povy"* ]] || false
 }
 
 @test "piped, with a terminal: answers come from it and the machine is configured" {

@@ -38,7 +38,7 @@ need_plutil() {
   [ -f "$PLIST" ]
   [ "$(file_mode "$PLIST")" = 644 ]
   [ "$(cat "$STUB_DIR/PATH")" = "$SHIMS:$LOCAL_BIN:/usr/bin:/bin:/usr/sbin:/sbin" ]
-  [[ "$output" == *"graphical apps started from now on"* ]]
+  [[ "$output" == *"graphical apps started from now on"* ]] || false
 }
 
 @test "macOS: an existing PATH is kept, and a second run sets nothing" {
@@ -58,7 +58,7 @@ need_plutil() {
   POVY_LAUNCHCTL=false
   run gui_apply
   [ "$status" -eq 0 ]
-  [[ "$output" == *"next login"* ]]
+  [[ "$output" == *"next login"* ]] || false
   [ -f "$PLIST" ]
 }
 
@@ -72,7 +72,7 @@ need_plutil() {
   [ "$(plutil -extract ProgramArguments.4 raw -o - "$PLIST")" = /bin/launchctl ]
   local script
   script=$(plutil -extract ProgramArguments.2 raw -o - "$PLIST")
-  [[ "$script" == *'"$HOME/.config/povy/env.sh"'* ]]
+  [[ "$script" == *'"$HOME/.config/povy/env.sh"'* ]] || false
 
   # What launchd would run at login, with the stub in place of /bin/launchctl.
   rm -f "$STUB_DIR/PATH"
@@ -100,12 +100,36 @@ need_plutil() {
   use_linux
   run gui_apply
   [ "$status" -eq 0 ]
-  [[ "$output" == *"next login"* ]]
+  [[ "$output" == *"next login"* ]] || false
   [ "$(file_mode "$ENV_D")" = 644 ]
   grep -qxF "PATH=$SHIMS:\${HOME}/.local/bin:\${PATH}" "$ENV_D"
   run gui_apply
-  [[ "$output" != *"next login"* ]]
+  [[ "$output" != *"next login"* ]] || false
   [ ! -e "$STUB_DIR/calls" ]
+}
+
+@test "macOS: graphical apps get the profile's commands too, after the shims" {
+  use_darwin
+  PROFILE_BIN=$HOME/.local/state/povy/profile/bin
+  shell_write_env
+  gui_apply
+  [ "$(cat "$STUB_DIR/PATH")" = "$SHIMS:$PROFILE_BIN:$LOCAL_BIN:/usr/bin:/bin:/usr/sbin:/sbin" ]
+}
+
+@test "Linux: environment.d puts the profile's commands between the shims and ~/.local/bin" {
+  use_linux
+  PROFILE_BIN=$HOME/.local/state/povy/profile/bin
+  gui_apply
+  grep -qxF "PATH=$SHIMS:\${HOME}/.local/state/povy/profile/bin:\${HOME}/.local/bin:\${PATH}" "$ENV_D"
+}
+
+@test "Linux: a profile path that systemd could reinterpret is not written" {
+  use_linux
+  PROFILE_BIN="$HOME/my \$profile/bin"
+  run gui_apply
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"cannot be written safely"* ]] || false
+  [ ! -e "$ENV_D" ]
 }
 
 @test "Linux: a path that systemd could reinterpret is not written" {
@@ -114,6 +138,6 @@ need_plutil() {
   povy_init_paths
   run gui_apply
   [ "$status" -eq 0 ]
-  [[ "$output" == *"cannot be written safely"* ]]
+  [[ "$output" == *"cannot be written safely"* ]] || false
   [ ! -e "$ENV_D" ]
 }

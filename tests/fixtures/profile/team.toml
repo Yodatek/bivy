@@ -1,0 +1,7 @@
+# The profile the tests use, included in every directory: tools and what goes with
+# them. _samples/profile shows a complete one.
+[tools]
+jq = "1.7.1"
+
+[shell_alias]
+example-alias = "echo alias from the example profile"

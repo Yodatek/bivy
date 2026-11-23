@@ -1,4 +1,4 @@
-# Written by povy from the sample profile.
+# Written from the sample profile.
 "$schema" = "https://starship.rs/config-schema.json"
 
 add_newline = false

@@ -1,18 +1,28 @@
 # Sample profile
 
-A povy profile that uses every key of `profile.toml`. To start your own, copy this
-directory to the root of a new Git repository, keep what you need, and set `profile` to
-that repository in `config.toml`.
+A povy profile is a Git repository in mise's own format. To start your own, copy
+this directory to the root of a new repository, keep what you need, and set
+`profile` to that repository in `config.toml`.
 
-| Key | Here |
+| File | What it holds |
 | --- | --- |
-| `prompt` | Starts Starship, whose look comes from `files/starship.toml`. |
-| `bin` | Puts `sample-hello` on `PATH`, and its `.ps1` twin on Windows. |
-| `shell` | Adds `ll` and `mkcd` to interactive shells: `aliases.sh` for zsh and bash, `aliases.ps1` for PowerShell. |
-| `[secrets]` | Needs `SAMPLE_API_TOKEN` in `~/.config/povy/.env`. |
-| `[tools]` | Installs jq, Node.js 22 and 20 with 22 as the default, and Prettier from npm. |
-| `[packages]` | Installs `tree`, which mise has no backend for, with brew, apt or dnf. |
-| `[[files]]` | Writes `~/.config/povy-sample/sample.conf` and `~/.config/starship.toml`. |
+| `team.toml` | What mise includes in every directory, through povy: the tools (jq, Node.js 22 and 20, Prettier from npm, Starship) and the `ll` alias. |
+| `mise.toml` | What `mise bootstrap` applies: the `tree` package, the `SAMPLE_API_TOKEN` secret, `sample.conf` from a template, `starship.toml`, mise activation and a block in `.zshrc` and `.bashrc`. |
+| `[_.povy]` in `mise.toml` | What povy does itself: the commands of `bin` on every PATH, and on Windows, the files and the PowerShell code. |
+| `bin/` | `sample-hello`, and its `.ps1` twin for Windows. |
+| `files/` | `sample.conf`, a template that reads the secret, and `starship.toml`. |
+| `shell/` | `functions.sh` for zsh and bash, `aliases.ps1` for PowerShell. |
+
+Everything in `team.toml` and `mise.toml` is [mise configuration](https://mise.jdx.dev/configuration.html)
+and [mise bootstrap](https://mise.jdx.dev/bootstrap.html): read those pages for every
+section. Things to know:
+
+- Tools go in `team.toml`. The `[tools]` of `mise.toml` apply only in the profile's
+  own directory.
+- mise writes no file on Windows, so file entries carry `os = "unix"`. povy writes
+  those that `[_.povy.windows]` lists, with only `secret()` and `vars` in templates.
+- A file takes one block across every mise config: a profile's `~/.zshrc` block
+  replaces one that the machine's own config declares for that file.
 
 ## Try it
 
@@ -35,10 +45,10 @@ sample-hello
 ```
 
 ```bash
-povy tools
+mise ls --current
 ```
 
-Trying the sample changes your prompt and installs the tools and packages above. Files
-it replaces, such as an existing `~/.config/starship.toml`, are first copied to
-`~/.local/state/povy/backups/`. To stop using it, remove `profile_path`, set `profile`
-back and run `povy apply`. The files and packages it added stay where they are.
+Trying the sample changes your prompt, installs the tools and the package above, and
+replaces `~/.config/starship.toml`: keep a copy of yours first. To stop using it,
+remove `profile_path`, set `profile` back and run `povy apply`. What it installed
+stays where it is.

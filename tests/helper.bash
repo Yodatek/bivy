@@ -17,7 +17,7 @@ sandbox_env() {
   done
   unset ZDOTDIR GIT_DIR GIT_WORK_TREE GIT_CONFIG_GLOBAL
   # The banner keeps quiet in IDEs and agents, the test runner included.
-  unset CLAUDECODE INSIDE_EMACS TERM_PROGRAM TERMINAL_EMULATOR NO_COLOR
+  unset CLAUDECODE INSIDE_EMACS TERM_PROGRAM TERMINAL_EMULATOR NO_COLOR CLICOLOR_FORCE
   export HOME=$1
   export POVY_TTY=/nonexistent/tty
   export SHELL=/bin/sh
@@ -72,8 +72,8 @@ load_libs() {
   . "$POVY_ROOT/lib/gui.sh"
   # shellcheck source=lib/git.sh
   . "$POVY_ROOT/lib/git.sh"
-  # shellcheck source=lib/packages.sh
-  . "$POVY_ROOT/lib/packages.sh"
+  # shellcheck source=lib/team.sh
+  . "$POVY_ROOT/lib/team.sh"
   povy_init_paths
   povy_load_os
   povy_ensure_dirs
@@ -102,16 +102,46 @@ commit_all() {
   git -C "$1" -c user.name=t -c user.email=t@example.org commit --quiet -m test
 }
 
-# Creates a profile from a profile.toml body and templates given as name=content.
-make_custom_profile() {
-  local dest=$1 toml=$2 pair
-  shift 2
-  mkdir -p "$dest/files"
-  printf '%s\n' "$toml" >"$dest/profile.toml"
+# Creates a profile repository from a team.toml body, a mise.toml body and files
+# given as path=content, the paths relative to the profile, then commits. An empty
+# body leaves its file out. A file whose content starts with #! is executable.
+make_mise_profile() {
+  local dest=$1 team=$2 project=$3 pair path
+  shift 3
+  mkdir -p "$dest"
+  [ -z "$team" ] || printf '%s\n' "$team" >"$dest/team.toml"
+  [ -z "$project" ] || printf '%s\n' "$project" >"$dest/mise.toml"
   for pair in "$@"; do
-    printf '%s\n' "${pair#*=}" >"$dest/files/${pair%%=*}"
+    path=$dest/${pair%%=*}
+    mkdir -p "$(dirname "$path")"
+    printf '%s\n' "${pair#*=}" >"$path"
+    case "${pair#*=}" in
+      '#!'*) chmod +x "$path" ;;
+    esac
   done
   commit_all "$dest"
+}
+
+# A mise.toml body: the template files/t rendered into ~/.out/t in mode 600, and
+# each secret given read from the environment variable of the same name.
+out_file_project() {
+  local secret
+  if [ $# -gt 0 ]; then
+    echo '[bootstrap.secrets]'
+    for secret in "$@"; do
+      printf '%s = { env = "%s" }\n' "$secret" "$secret"
+    done
+  fi
+  cat <<'TOML'
+[bootstrap.directories."~/.out"]
+os = "unix"
+
+[bootstrap.files."~/.out/t"]
+os = "unix"
+source = "./files/t"
+template = true
+mode = "0600"
+TOML
 }
 
 file_mode() {
@@ -123,12 +153,14 @@ file_mode() {
   esac
 }
 
-# Hash of everything povy owns in the home; tool installs are left out.
+# Hash of every file in the home. Tool installs, the state of mise, caches and the
+# Git metadata of the profile clone, which each fetch touches, are left out.
 home_fingerprint() {
   (
     cd "$HOME" &&
       find . -type f -not -path './.local/share/mise/*' -not -path './.local/state/mise/*' \
-        -not -path './.cache/*' -not -path './Library/*' -print | LC_ALL=C sort |
+        -not -path './.cache/*' -not -path './Library/Caches/*' \
+        -not -path './.local/state/povy/profile/.git/*' -print | LC_ALL=C sort |
       while IFS= read -r f; do
         cksum "$f"
       done

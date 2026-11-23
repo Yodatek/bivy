@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 3.0
 
 $script:PovyRoot = Split-Path -Parent $PSScriptRoot
-foreach ($lib in 'common', 'config', 'profile', 'system', 'git', 'commands') {
+foreach ($lib in 'common', 'config', 'profile', 'team', 'system', 'git', 'commands') {
     . (Join-Path $script:PovyRoot "lib/ps/$lib.ps1")
 }
 
