@@ -12,8 +12,10 @@ security issues privately, as [SECURITY.md](SECURITY.md) explains, never in a pu
   or an account. What a team needs goes in its profile; the engine only gains a key when
   several profiles would use it.
 - Code, comments, messages and documentation are in English.
-- The code runs on bash 3.2, the version macOS ships, and on the GNU and BSD tools of
-  Linux and macOS.
+- The bash engine runs on bash 3.2, the version macOS ships, and on the GNU and BSD
+  tools of Linux and macOS. The PowerShell engine, for Windows, runs on PowerShell 7.2
+  and later. Both read the same files, with the same rules: a change to one usually
+  needs the same change in the other.
 - povy keeps the real `HOME` and changes the user's files only inside its marked blocks
   or after a backup.
 
@@ -30,11 +32,16 @@ mise run test
 ```
 
 ```bash
+mise run test-ps
+```
+
+```bash
 mise run lint
 ```
 
 Each test gets a temporary `HOME` and stubs for `launchctl`, so the suite never touches
-your own files or graphical session. Enable the hook that scans the history for secrets
+your own files or graphical session. `test-ps` runs the Pester tests of the PowerShell
+engine, on any system; the registry and bootstrap tests only run on Windows, in CI. Enable the hook that scans the history for secrets
 before each push:
 
 ```bash
@@ -46,8 +53,9 @@ user, host and profile replaced.
 
 ## Changes
 
-- A change of behavior comes with a [bats](https://bats-core.readthedocs.io) test in
-  `tests/`.
+- A change of behavior comes with a test: [bats](https://bats-core.readthedocs.io) in
+  `tests/` for the bash engine, [Pester](https://pester.dev) in `tests/ps/` for the
+  PowerShell one.
 - What users see goes in the README, and in the `Unreleased` section of
   [CHANGELOG.md](CHANGELOG.md).
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org):

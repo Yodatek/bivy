@@ -6,6 +6,11 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A preview of povy on Windows without WSL2, in PowerShell 7: `bootstrap.ps1`, and `povy init`, `apply`, `doctor` and `version` from the same configuration and profiles. Tools and profile commands go on the user `PATH`, and the PowerShell profile gets a marked block.
+- Profiles can list `.ps1` shell files and a `winget` package list for Windows; zsh, bash and the other systems leave them out.
+
 ### Changed
 
 - The README and the sample profile install tools through mise, its registry or a backend such as `npm:` or `pipx:`, and keep `[packages]` for what mise cannot install.

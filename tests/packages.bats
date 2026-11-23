@@ -156,3 +156,17 @@ calls() {
   run povy doctor
   [[ "$output" == *"[ok]   packages: 1 installed with brew"* ]]
 }
+
+@test "a winget list is accepted, and left to povy on Windows" {
+  only_managers brew
+  PROFILE_PACKAGES=$'brew\tpodman\nwinget\tRedHat.Podman'
+  run packages_apply
+  [ "$status" -eq 0 ]
+  calls | grep -qxF "brew install podman"
+  [[ "$output" != *"no package manager"* ]]
+  local config=$BATS_TEST_TMPDIR/c.toml
+  write_config "$config"
+  printf '[packages]\nwinget = ["Microsoft.PowerToys"]\n' >>"$config"
+  run povy init --config "$config"
+  [ "$status" -eq 0 ]
+}

@@ -4,16 +4,22 @@ actionlint = "1.7.12"
 bats = "1.14.0"
 "aqua:charmbracelet/freeze" = "0.2.2"
 gitleaks = "8.30.1"
+powershell = "7.6.10"
 shellcheck = "0.11.0"
 
 [tasks.test]
 run = "bats tests"
 
+[tasks.test-ps]
+description = "Test the PowerShell engine for Windows, with Pester"
+run = "pwsh -NoProfile -File scripts/ps-tasks.ps1 -Task test"
+
 [tasks.lint]
 run = [
   "shellcheck -x bootstrap bin/povy lib/*.sh lib/os/*.sh lib/cmd/*.sh tests/helper.bash .githooks/pre-push scripts/banner-image scripts/release",
-  "shellcheck -s sh _samples/profile/bin/* _samples/profile/shell/*.sh",
+  "shellcheck -s sh _samples/profile/bin/sample-hello _samples/profile/shell/aliases.sh",
   "actionlint",
+  "pwsh -NoProfile -File scripts/ps-tasks.ps1 -Task lint",
 ]
 
 [tasks.scan]

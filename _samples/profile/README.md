@@ -7,8 +7,8 @@ that repository in `config.toml`.
 | Key | Here |
 | --- | --- |
 | `prompt` | Starts Starship, whose look comes from `files/starship.toml`. |
-| `bin` | Puts `sample-hello` on `PATH`. |
-| `shell` | Adds the `ll` alias and the `mkcd` function to interactive shells. |
+| `bin` | Puts `sample-hello` on `PATH`, and its `.ps1` twin on Windows. |
+| `shell` | Adds `ll` and `mkcd` to interactive shells: `aliases.sh` for zsh and bash, `aliases.ps1` for PowerShell. |
 | `[secrets]` | Needs `SAMPLE_API_TOKEN` in `~/.config/povy/.env`. |
 | `[tools]` | Installs jq, Node.js 22 and 20 with 22 as the default, and Prettier from npm. |
 | `[packages]` | Installs `tree`, which mise has no backend for, with brew, apt or dnf. |

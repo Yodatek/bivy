@@ -4,7 +4,7 @@
 bin = "bin"
 
 # Files that interactive shells source: aliases and functions.
-shell = ["shell/example.sh"]
+shell = ["shell/example.sh", "shell/example.ps1"]
 
 [secrets]
 required = ["EXAMPLE_API_TOKEN"]
