@@ -38,10 +38,13 @@ function Invoke-E2eStep([string]$Title, [scriptblock]$Block) {
 }
 
 # A bare repository whose main branch is the commit under test, for the engine and
-# the profile alike. Bare, because Git refuses to fetch into the checked-out branch.
+# the profile alike. Bare, because Git refuses to fetch into the checked-out branch;
+# --update-shallow, because CI checks out one commit, and Git otherwise skips the
+# branch with a mere warning.
 $source = Join-Path $work 'source.git'
 git init --quiet --bare $source
-git -C $source fetch --quiet $root "$(git -C $root rev-parse HEAD):refs/heads/main"
+git -C $source fetch --quiet --update-shallow $root "$(git -C $root rev-parse HEAD):refs/heads/main"
+git -C $source rev-parse --verify --quiet refs/heads/main | Out-Null
 Assert-E2e ($LASTEXITCODE -eq 0) 'could not fetch the commit under test'
 git -C $source symbolic-ref HEAD refs/heads/main
 

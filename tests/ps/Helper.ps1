@@ -57,10 +57,13 @@ function Invoke-PovyCli {
 }
 
 # A bare repository whose main branch is the commit under test. Bare, because Git
-# refuses to fetch into the checked-out branch, which main is when Git defaults to it.
+# refuses to fetch into the checked-out branch, which main is when Git defaults to it;
+# --update-shallow, because CI checks out one commit, and Git otherwise skips the
+# branch with a mere warning.
 function New-PovySourceRepo([string]$Dest) {
     git init --quiet --bare $Dest
-    git -C $Dest fetch --quiet $script:PovyRoot "$(git -C $script:PovyRoot rev-parse HEAD):refs/heads/main"
+    git -C $Dest fetch --quiet --update-shallow $script:PovyRoot "$(git -C $script:PovyRoot rev-parse HEAD):refs/heads/main"
+    git -C $Dest rev-parse --verify --quiet refs/heads/main | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "could not fetch the commit under test into $Dest" }
     git -C $Dest symbolic-ref HEAD refs/heads/main
 }
