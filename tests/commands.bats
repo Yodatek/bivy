@@ -38,6 +38,11 @@ setup() {
   [[ "$output" == *"hello, ada"*"alias from the example profile"* ]]
 }
 
+@test "PowerShell files of the profile are left to povy on Windows" {
+  grep -q 'shell/example.sh' "$HOME/.config/povy/interactive.sh"
+  ! grep -q 'example.ps1' "$HOME/.config/povy/interactive.sh"
+}
+
 @test "the shell files are sourced once, even when .bash_profile sources .bashrc" {
   local login
   login=$(find "$HOME" -maxdepth 1 \( -name .bash_profile -o -name .profile \) | head -n 1)

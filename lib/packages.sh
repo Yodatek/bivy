@@ -1,9 +1,10 @@
 # shellcheck shell=bash
 # System packages, for what mise does not install: brew formulas and casks on macOS,
-# apt on Debian, Ubuntu and WSL2, dnf on Fedora and RHEL. Each list is used where its
-# manager exists, only missing packages are installed, and nothing is ever removed.
+# apt on Debian, Ubuntu and WSL2, dnf on Fedora and RHEL, and winget on Windows, which
+# the PowerShell engine handles. Each list is used where its manager exists, only
+# missing packages are installed, and nothing is ever removed.
 
-POVY_PACKAGE_MANAGERS="brew cask apt dnf"
+POVY_PACKAGE_MANAGERS="brew cask apt dnf winget"
 POVY_PACKAGE_RE='^[A-Za-z0-9][A-Za-z0-9._+@/-]*$'
 
 # Prints "manager<TAB>name" lines for a [packages] table.
@@ -35,6 +36,7 @@ packages_command() {
     brew | cask) command -v brew 2>/dev/null ;;
     apt) command -v apt-get 2>/dev/null ;;
     dnf) command -v dnf 2>/dev/null ;;
+    winget) ;;
   esac
 }
 

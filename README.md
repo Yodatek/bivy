@@ -1,6 +1,7 @@
 # povy
 
-A portable development environment for macOS, Linux and Windows through WSL2.
+A portable development environment for macOS, Linux and Windows, through WSL2 or, in
+preview, natively in PowerShell 7.
 
 povy keeps your real `HOME`. Tools come from [mise](https://mise.jdx.dev), and their
 shims are on `PATH` in interactive and non-interactive shells alike, and in graphical
@@ -22,6 +23,29 @@ then offers to configure the machine.
 To update povy, run the same command again, then `povy apply`. The
 [changelog](CHANGELOG.md) lists what each release changes, and `povy --version` tells
 which one you run.
+
+### Windows without WSL2 (preview)
+
+In PowerShell 7:
+
+```powershell
+irm https://raw.githubusercontent.com/Yodatek/povy/main/bootstrap.ps1 | iex
+```
+
+This bootstrap installs Git and mise with winget if they are missing, clones the engine
+into `%LOCALAPPDATA%\povy\engine` and adds the `povy` command to your user `PATH`. The
+PowerShell engine reads the same `config.toml` and profiles, and offers `povy init`,
+`apply`, `doctor` and `version`. What changes on Windows:
+
+- The mise shims and the profile commands go on the user `PATH`, which every new
+  process gets, graphical apps included. Windows puts the system `PATH` first, so a
+  tool also installed for the whole machine wins outside PowerShell; `povy doctor`
+  names it. PowerShell sessions put the shims first.
+- Your PowerShell profile gets a marked block that sources the profile's `.ps1` shell
+  files and starts the prompt.
+- `[packages]` uses its `winget` list.
+- Files with secrets are readable by you only, through their access list.
+- There is no banner and no `povy tools` yet.
 
 ## Commands
 
@@ -78,7 +102,7 @@ shows how to try it on a machine.
 ```toml
 prompt = "starship"                 # optional, see Prompt
 bin = "bin"                         # optional, commands put on PATH
-shell = ["shell/aliases.sh"]        # optional, sourced by interactive shells
+shell = ["shell/aliases.sh", "shell/aliases.ps1"] # optional, sourced by interactive shells
 
 [secrets]
 required = ["EXAMPLE_API_TOKEN"]   # read from ~/.config/povy/.env
@@ -93,6 +117,7 @@ brew = ["podman"]                   # macOS formulas
 cask = ["iterm2"]                   # macOS apps
 apt = ["podman"]                    # Debian, Ubuntu, WSL2
 dnf = ["podman"]                    # Fedora, RHEL
+winget = ["RedHat.Podman"]          # Windows
 
 [[files]]
 source = "files/example.conf.tmpl"          # relative to the profile
@@ -119,8 +144,10 @@ missing ones. `config.toml` can have a `[packages]` table too, added to the prof
 
 `bin` is a directory of the profile whose executables are on `PATH` in every shell and
 in graphical apps, read from the profile clone, so a command added to the profile is there
-after the next `apply`. The `shell` files are sourced once by each interactive zsh or bash,
-for aliases and functions: write them in code both shells understand.
+after the next `apply`. Windows runs its `.ps1` and `.cmd` files, the other systems its
+executable scripts. The `shell` files are sourced once by each interactive shell, for
+aliases and functions: PowerShell takes the `.ps1` ones, and zsh and bash the others, so
+write those in code both shells understand.
 
 A profile can install tools, write files in your home directory and run commands in
 your shells, so only use one you trust.
@@ -185,6 +212,8 @@ the key, or with `prompt = "none"`, povy leaves the prompt alone.
   shims.
 - On Linux, graphical apps get the shims only in a session started by systemd.
 - fish is not supported yet.
+- Native Windows is a preview: it has no banner and no `povy tools`, and it is tested on
+  GitHub's Windows runners rather than on many machines.
 
 ## Contributing
 

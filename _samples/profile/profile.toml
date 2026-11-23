@@ -4,11 +4,13 @@
 # Starts Starship in interactive zsh and bash; "none" leaves your prompt alone.
 prompt = "starship"
 
-# A directory of commands, on PATH in every shell and in graphical apps.
+# A directory of commands, on PATH in every shell and in graphical apps. Windows runs
+# the .ps1 and .cmd ones, the other systems the executable scripts.
 bin = "bin"
 
-# Files that each interactive zsh or bash sources once, for aliases and functions.
-shell = ["shell/aliases.sh"]
+# Files that interactive shells source once, for aliases and functions: PowerShell
+# on Windows takes the .ps1 ones, zsh and bash the others.
+shell = ["shell/aliases.sh", "shell/aliases.ps1"]
 
 # Secrets the profile needs. povy init adds an empty line for each one to
 # ~/.config/povy/.env, which you fill in. Templates read them as {{NAME}}.
@@ -31,6 +33,7 @@ brew = ["tree"]      # macOS formulas
 # cask = ["iterm2"]  # macOS apps, left out so that trying the sample adds none
 apt = ["tree"]       # Debian, Ubuntu, WSL2
 dnf = ["tree"]       # Fedora, RHEL
+# winget = ["Microsoft.PowerToys"]  # Windows, which has tree already
 
 # Templates written in the home directory, in mode 600. They can use {{name}},
 # {{email}}, {{home}}, and {{NAME}} for each required secret.

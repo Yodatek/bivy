@@ -44,3 +44,27 @@ jobs:
       - run: PATH="/bin:$PATH" mise run test
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      - run: mise run test-ps
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  # The PowerShell engine on the system it is for, registry and bootstrap included.
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          install: false
+          github_token: ${{ github.token }}
+      - run: ./scripts/ps-tasks.ps1 -Task test
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      # Last: it installs povy on the runner for real, with no test seam.
+      - name: End-to-end run, from the bootstrap to doctor
+        run: ./tests/ps/e2e.ps1
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

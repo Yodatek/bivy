@@ -136,6 +136,10 @@ profile_load() {
     [ -n "$source" ] || continue
     valid_relative_path "$source" || die "$file: invalid shell file: $source"
     profile_check_source "$source"
+    # PowerShell files are for povy on Windows; zsh and bash source the others.
+    case "$source" in
+      *.ps1) continue ;;
+    esac
     PROFILE_SHELL="$PROFILE_SHELL$source"$'\n'
   done <<<"$raw"
 
