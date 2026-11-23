@@ -6,6 +6,15 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Contexts: `[contexts.<id>]` in `config.toml` applies a profile, a Git identity, or both, below a directory, through a mise config that `apply` writes there, so that the IDEs and agents opened there get it too. Nested contexts add up, the deepest winning, and each context reads its secrets in its own `<id>.env`, then in `.env`. `apply` stops when two profiles write the same file.
+- `povy status`, which shows the contexts that apply in a directory.
+
+### Changed
+
+- Git identities by directory apply parents first, so the deepest directory wins whatever the order of `config.toml`.
+
 ## [0.2.0] - 2026-11-23
 
 povy becomes a thin layer over mise: a profile is mise configuration that `mise bootstrap` applies, and povy keeps what mise leaves out. "From povy 0.1" in the README lists what to move.

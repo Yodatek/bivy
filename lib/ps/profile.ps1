@@ -44,6 +44,7 @@ function Copy-PovyProfile([string]$Url, [string]$Ref) {
         Stop-Povy "could not clone the profile: $Url$suffix"
     }
     if (Test-Path -LiteralPath $script:PovyProfileDir) { Remove-Item -LiteralPath $script:PovyProfileDir -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $script:PovyProfileDir) | Out-Null
     Move-Item -LiteralPath $clone -Destination $script:PovyProfileDir
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction Ignore
     Write-PovyInfo "cloned profile $Url$suffix"

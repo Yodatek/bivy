@@ -9,7 +9,7 @@ BeforeAll {
     # As bin/povy.ps1 runs the engine.
     Set-StrictMode -Version 3.0
     . (Join-Path $PSScriptRoot 'Helper.ps1')
-    foreach ($lib in 'common', 'config', 'profile', 'team', 'system', 'git', 'commands') {
+    foreach ($lib in 'common', 'config', 'profile', 'team', 'context', 'system', 'git', 'commands') {
         . (Join-Path $script:PovyRoot "lib/ps/$lib.ps1")
     }
     $fixture = Join-Path $script:PovyRoot 'tests/fixtures/profile'
@@ -94,7 +94,7 @@ Describe 'marked blocks' {
 Describe 'the user PATH' {
     BeforeEach {
         $sandbox = Initialize-PovyTestRun
-        $script:Prof.Bin = [IO.Path]::GetFullPath((Join-Path $script:PovyProfileDir 'bin'))
+        $script:PovyBins = @([IO.Path]::GetFullPath((Join-Path $script:PovyProfileDir 'bin')))
         New-Item -ItemType Directory -Force -Path $script:PovyLauncherDir | Out-Null
         $other = if ($IsWindows) { 'C:\Other\bin' } else { '/opt/other/bin' }
         $stale = Join-Path $script:PovyDataDir 'state/profile/old-bin'
@@ -110,7 +110,7 @@ Describe 'the user PATH' {
         $entries = (Get-Content -Raw -LiteralPath $sandbox.UserPath).Trim() -split ';'
         $expanded = @($entries | ForEach-Object { [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($_)) })
         $expanded[0] | Should -Be ([IO.Path]::GetFullPath($script:PovyShimsDir))
-        $expanded[1] | Should -Be $script:Prof.Bin
+        $expanded[1] | Should -Be $script:PovyBins[0]
         $expanded[2] | Should -Be ([IO.Path]::GetFullPath((Join-Path $sandbox.Home '.local/bin')))
         $expanded[3] | Should -Be ([IO.Path]::GetFullPath($script:PovyLauncherDir))
         $entries[4] | Should -BeExactly '%POVY_TEST_UNSET%\tools'

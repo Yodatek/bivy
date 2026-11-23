@@ -5,7 +5,8 @@
 # This is what mise's own activation cannot do: its blocks run `mise`, which a
 # shell started by an IDE from the Dock, or by an agent, does not have on its PATH.
 # env.sh holds absolute paths, so the shims are there whatever PATH a shell starts
-# with. The profile's commands, its [_.povy] bin, come before ~/.local/bin.
+# with. The profiles' commands, their [_.povy] bin, come before ~/.local/bin, the
+# first in config.toml first.
 
 # Writes a path as shell source, using $HOME when possible so that the block
 # stays valid in a dotfiles repository shared between machines.
@@ -47,9 +48,11 @@ __povy_path_front() {
 }
 EOF
     printf '__povy_path_front %s\n' "$(shell_path_literal "$POVY_LOCAL_BIN")"
-    if [ -n "${PROFILE_BIN:-}" ]; then
-      printf '__povy_path_front %s\n' "$(shell_path_literal "$PROFILE_BIN")"
-    fi
+    # Each moves to the front, so the last written ends up first.
+    printf '%s\n' "${POVY_BINS:-}" | awk 'NF { line[++n] = $0 } END { for (i = n; i >= 1; i--) print line[i] }' |
+      while IFS= read -r dir; do
+        printf '__povy_path_front %s\n' "$(shell_path_literal "$dir")"
+      done
     printf '__povy_path_front %s\n' "$(shell_path_literal "$POVY_SHIMS_DIR")"
     echo 'export PATH'
     echo 'unset -f __povy_path_front'

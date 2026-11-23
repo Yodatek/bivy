@@ -81,7 +81,7 @@ function ConvertTo-PovyComparablePath([string]$Entry) {
 function Get-PovyWantedPath {
     $wanted = [System.Collections.Generic.List[string]]::new()
     $wanted.Add($script:PovyShimsDir)
-    if ($script:Prof.Bin) { $wanted.Add($script:Prof.Bin) }
+    foreach ($bin in $script:PovyBins) { $wanted.Add($bin) }
     $wanted.Add($script:PovyLocalBin)
     if (Test-Path -LiteralPath $script:PovyLauncherDir -PathType Container) { $wanted.Add($script:PovyLauncherDir) }
     return $wanted.ToArray()
@@ -170,7 +170,7 @@ function Write-PovyInteractive {
     $lines.Add('$__povy_front = @(' + ($front -join ', ') + ')')
     $lines.Add('$env:PATH = (@($__povy_front) + @($env:PATH -split [IO.Path]::PathSeparator | Where-Object { $_ -and $__povy_front -notcontains $_ })) -join [IO.Path]::PathSeparator')
     $lines.Add('Remove-Variable __povy_front')
-    foreach ($path in $script:Prof.WindowsShell) {
+    foreach ($path in $script:PovyShellFiles) {
         $literal = ConvertTo-PovyPsLiteral $path
         $lines.Add("if (Test-Path -LiteralPath $literal) { . $literal }")
     }

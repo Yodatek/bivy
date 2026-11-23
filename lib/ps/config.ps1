@@ -4,7 +4,11 @@
 
 $script:PovyConfigHeader = '# Machine configuration for povy. Never versioned.'
 $script:PovyRefRe = '^[A-Za-z0-9_][A-Za-z0-9._/-]*$'
+$script:PovyContextIdRe = '^[a-z0-9][a-z0-9-]*$'
+$script:PovyContextKeys = @('dir', 'name', 'email', 'profile', 'profile_ref', 'profile_path')
 $script:Cfg = $null
+# The shared .env, which a context reads after its own <id>.env.
+$script:PovyEnvFallback = $null
 
 function Test-PovyName([string]$Value) {
     return ($Value -and -not (Test-PovyControlChar $Value))
@@ -98,6 +102,62 @@ function ConvertTo-PovyIdentity($Data, [string]$File, [string]$DefaultName) {
     return , $identities.ToArray()
 }
 
+# The [contexts.<id>] tables, in the order of the file, checked with the same rules
+# as the bash engine: a Git identity, a profile, or both, below a directory.
+function ConvertTo-PovyContext($Data, [string]$File, [string]$DefaultName) {
+    $contexts = [System.Collections.Generic.List[object]]::new()
+    $table = Get-PovyTomlTable $Data 'contexts' $File '[contexts.<id>]'
+    $comparer = if ($IsWindows) { [StringComparer]::OrdinalIgnoreCase } else { [StringComparer]::Ordinal }
+    $dirs = [System.Collections.Generic.HashSet[string]]::new($comparer)
+    foreach ($id in @($table.Keys)) {
+        if ($id -cnotmatch $script:PovyContextIdRe) {
+            Stop-Povy "${File}: invalid context id: $id; use lowercase letters, digits and dashes"
+        }
+        $label = "contexts.$id"
+        $entry = $table[$id]
+        if ($entry -isnot [System.Collections.IDictionary]) { Stop-Povy "${File}: $label must be a table" }
+        foreach ($key in @($entry.Keys)) {
+            if ($key -cnotin $script:PovyContextKeys) { Stop-Povy "${File}: ${label}: unknown key: $key" }
+        }
+        $raw = Get-PovyTomlString $entry 'dir' $File
+        if (-not $raw) { Stop-Povy "${File}: ${label}: dir is required" }
+        $dir = ConvertTo-PovyIdentityDir $raw
+        if (-not $dir) { Stop-Povy "${File}: ${label}: dir must start with ~/, / or a drive" }
+        # Its conf.d file would be mise's global one.
+        if ($comparer.Equals((Get-PovyContextPath $dir), $script:PovyHome)) {
+            Stop-Povy "${File}: ${label}: dir must be below your home directory"
+        }
+        if (-not $dirs.Add($dir)) { Stop-Povy "${File}: ${label}: another context has the directory $dir" }
+        $name = Get-PovyTomlString $entry 'name' $File
+        $email = Get-PovyTomlString $entry 'email' $File
+        $url = Get-PovyTomlString $entry 'profile' $File
+        $ref = Get-PovyTomlString $entry 'profile_ref' $File
+        $path = (Get-PovyTomlString $entry 'profile_path' $File).TrimEnd('/')
+        if (-not $email -and -not $url) { Stop-Povy "${File}: ${label}: give it an email, a profile, or both" }
+        if ($email) {
+            if (-not $name) { $name = $DefaultName }
+            if (-not (Test-PovyName $name)) { Stop-Povy "${File}: ${label}: invalid name" }
+            if (-not (Test-PovyEmail $email)) { Stop-Povy "${File}: ${label}: email is not a valid address" }
+        } elseif ($name) {
+            Stop-Povy "${File}: ${label}: name needs an email"
+        }
+        $problem = Get-PovyProfileUrlProblem $url
+        if ($problem) { Stop-Povy "${File}: ${label}: $problem" }
+        if ($ref) {
+            if (-not $url) { Stop-Povy "${File}: ${label}: profile_ref needs a profile" }
+            if ($ref -cnotmatch $script:PovyRefRe -or $ref.Contains('..')) { Stop-Povy "${File}: ${label}: invalid profile_ref: $ref" }
+        }
+        if ($path) {
+            if (-not $url) { Stop-Povy "${File}: ${label}: profile_path needs a profile" }
+            if (-not (Test-PovyRelativePath $path)) { Stop-Povy "${File}: ${label}: invalid profile_path: $path" }
+        }
+        $contexts.Add([pscustomobject]@{
+                Id = $id; Dir = $dir; Name = $name; Email = $email; Profile = $url; ProfileRef = $ref; ProfilePath = $path
+            })
+    }
+    return , $contexts.ToArray()
+}
+
 # Settings that povy 0.1 read and that belong to mise now. A config that still has
 # them stops with the way out, rather than having them ignored.
 function Assert-PovyNoLegacyKey($Data, [string]$File) {
@@ -139,6 +199,7 @@ function Read-PovyConfig([string]$File) {
     $problem = Get-PovyProfileUrlProblem $cfg.Profile
     if ($problem) { Stop-Povy "${File}: $problem" }
     $cfg.Identities = ConvertTo-PovyIdentity $data $File $cfg.Name
+    $cfg.Contexts = ConvertTo-PovyContext $data $File $cfg.Name
     $cfg.Banner = Get-PovyTomlBool $data 'banner' $true $File
     $script:Cfg = $cfg
 }
@@ -192,12 +253,12 @@ function Initialize-PovyEnvFile {
     Set-PovyPrivate $script:PovyEnvFile
 }
 
-# The value of a key in .env, or $null when the key has no line. The last line wins,
-# as it would in a shell. Surrounding quotes are removed, CRLF is tolerated.
-function Get-PovyEnvValue([string]$Key) {
-    if (-not (Test-Path -LiteralPath $script:PovyEnvFile)) { return $null }
+# The value of a key in one file, or $null when the key has no line. The last line
+# wins, as it would in a shell. Surrounding quotes are removed, CRLF is tolerated.
+function Get-PovyEnvFileValue([string]$File, [string]$Key) {
+    if (-not (Test-Path -LiteralPath $File)) { return $null }
     $value = $null
-    foreach ($line in [System.IO.File]::ReadAllLines($script:PovyEnvFile)) {
+    foreach ($line in [System.IO.File]::ReadAllLines($File)) {
         $line = $line.TrimEnd("`r").TrimStart()
         if ($line.StartsWith('export ')) { $line = $line.Substring(7) }
         if ($line.StartsWith("$Key=", [StringComparison]::Ordinal)) { $value = $line.Substring($Key.Length + 1) }
@@ -209,10 +270,30 @@ function Get-PovyEnvValue([string]$Key) {
     return $value
 }
 
-# Adds an empty line for each listed key that has none; existing lines stay.
+# The value of a secret of the current context: the first value that is not empty,
+# in its .env, then in the shared one. '' when a file has the key with no value,
+# $null when no file has it.
+function Get-PovyEnvValue([string]$Key) {
+    $found = $null
+    foreach ($file in @($script:PovyEnvFile, $script:PovyEnvFallback) | Where-Object { $_ }) {
+        $value = Get-PovyEnvFileValue $file $Key
+        if ($null -eq $value) { continue }
+        if ($value) { return $value }
+        $found = ''
+    }
+    return $found
+}
+
+# Adds an empty line to the current .env for each listed key that no file has, and
+# creates that file, private, when it needs one. Existing lines stay.
 function Add-PovyEnvSeed([string[]]$Keys) {
     foreach ($key in $Keys) {
         if ($null -ne (Get-PovyEnvValue $key)) { continue }
+        if (-not (Test-Path -LiteralPath $script:PovyEnvFile)) {
+            [System.IO.File]::WriteAllText($script:PovyEnvFile, "# Secrets for povy. Never versioned.`n", $script:PovyUtf8)
+            Set-PovyPrivate $script:PovyEnvFile
+            Write-PovyInfo "wrote $script:PovyEnvFile"
+        }
         $text = [System.IO.File]::ReadAllText($script:PovyEnvFile)
         $prefix = if ($text.Length -gt 0 -and -not $text.EndsWith("`n")) { "`n" } else { '' }
         [System.IO.File]::AppendAllText($script:PovyEnvFile, "$prefix$key=`n", $script:PovyUtf8)

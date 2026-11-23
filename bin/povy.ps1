@@ -1,12 +1,12 @@
 #!/usr/bin/env pwsh
 #Requires -Version 7.2
 # povy on Windows, in PowerShell 7. The bash engine, bin/povy, serves macOS, Linux and
-# WSL2; both read the same config.toml and profile.toml.
+# WSL2; both read the same config.toml and profiles.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 3.0
 
 $script:PovyRoot = Split-Path -Parent $PSScriptRoot
-foreach ($lib in 'common', 'config', 'profile', 'team', 'system', 'git', 'commands') {
+foreach ($lib in 'common', 'config', 'profile', 'team', 'context', 'system', 'git', 'commands') {
     . (Join-Path $script:PovyRoot "lib/ps/$lib.ps1")
 }
 

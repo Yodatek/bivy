@@ -110,22 +110,22 @@ need_plutil() {
 
 @test "macOS: graphical apps get the profile's commands too, after the shims" {
   use_darwin
-  PROFILE_BIN=$HOME/.local/state/povy/profile/bin
+  POVY_BINS=$HOME/.local/state/povy/profile/bin
   shell_write_env
   gui_apply
-  [ "$(cat "$STUB_DIR/PATH")" = "$SHIMS:$PROFILE_BIN:$LOCAL_BIN:/usr/bin:/bin:/usr/sbin:/sbin" ]
+  [ "$(cat "$STUB_DIR/PATH")" = "$SHIMS:$POVY_BINS:$LOCAL_BIN:/usr/bin:/bin:/usr/sbin:/sbin" ]
 }
 
 @test "Linux: environment.d puts the profile's commands between the shims and ~/.local/bin" {
   use_linux
-  PROFILE_BIN=$HOME/.local/state/povy/profile/bin
+  POVY_BINS=$HOME/.local/state/povy/profile/bin
   gui_apply
   grep -qxF "PATH=$SHIMS:\${HOME}/.local/state/povy/profile/bin:\${HOME}/.local/bin:\${PATH}" "$ENV_D"
 }
 
 @test "Linux: a profile path that systemd could reinterpret is not written" {
   use_linux
-  PROFILE_BIN="$HOME/my \$profile/bin"
+  POVY_BINS="$HOME/my \$profile/bin"
   run gui_apply
   [ "$status" -eq 0 ]
   [[ "$output" == *"cannot be written safely"* ]] || false

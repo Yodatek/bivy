@@ -27,6 +27,8 @@ POVY_ROOT=$(cd -P "$(dirname "$src")/.." && pwd)
 . "$POVY_ROOT/lib/git.sh"
 # shellcheck source=lib/team.sh
 . "$POVY_ROOT/lib/team.sh"
+# shellcheck source=lib/context.sh
+. "$POVY_ROOT/lib/context.sh"
 
 usage() {
   cat <<'EOF'
@@ -34,9 +36,10 @@ Usage: povy <command>
 
 Commands:
   init [--config <file>]   Write ~/.config/povy/config.toml and .env
-  apply                    Apply the profile with mise bootstrap, put the tools on
-                           the PATH of every shell and app, set the Git identity
+  apply                    Apply the profiles with mise bootstrap, put the tools on
+                           the PATH of every shell and app, set the Git identities
   doctor                   Check the real state; exits 1 if something is wrong
+  status [<dir>]           Show the contexts that apply in a directory
   banner                   Show the tools and the machine load
   version                  Show the version of povy
   help                     Show this message
@@ -47,7 +50,7 @@ command=${1:-help}
 [ $# -eq 0 ] || shift
 
 case "$command" in
-  init | apply | doctor | banner)
+  init | apply | doctor | banner | status)
     # shellcheck source=/dev/null
     . "$POVY_ROOT/lib/cmd/$command.sh"
     "cmd_$command" "$@"
