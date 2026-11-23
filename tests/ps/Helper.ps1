@@ -6,7 +6,7 @@ $script:PovyRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $script:Pwsh = (Get-Process -Id $PID).Path
 $script:SharedMise = [System.IO.Path]::GetFullPath($(if ($env:POVY_TEST_MISE_DATA) { $env:POVY_TEST_MISE_DATA } else { Join-Path $script:PovyRoot '.cache/test-mise' }))
 $script:SandboxVars = @(
-    'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'XDG_DATA_HOME',
+    'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'XDG_DATA_HOME',
     'MISE_DATA_DIR', 'MISE_CACHE_DIR', 'MISE_CONFIG_DIR', 'POVY_USER_PATH_FILE', 'POVY_USER_ENV_KEY',
     'POVY_PS_PROFILE', 'POVY_WINGET', 'POVY_REPO', 'POVY_BRANCH', 'POVY_BOOTSTRAP_NO_INIT', 'EDITOR',
     'GIT_CONFIG_NOSYSTEM'
@@ -19,18 +19,22 @@ function New-PovySandbox {
     $sandbox = [ordered]@{
         Root = [System.IO.Path]::GetFullPath($root)
         Home = & $full 'home'
-        Local = & $full 'local'
+        # Laid out as a Windows profile: known folders such as the local application
+        # data resolve from USERPROFILE, and must exist, or mise cannot verify downloads.
+        Local = & $full 'home/AppData/Local'
+        Roaming = & $full 'home/AppData/Roaming'
         UserPath = & $full 'user-path'
         PsProfile = & $full 'home/profile.ps1'
         Saved = @{}
     }
-    New-Item -ItemType Directory -Force -Path $sandbox.Home, $sandbox.Local | Out-Null
+    New-Item -ItemType Directory -Force -Path $sandbox.Home, $sandbox.Local, $sandbox.Roaming | Out-Null
     foreach ($name in $script:SandboxVars) { $sandbox.Saved[$name] = [Environment]::GetEnvironmentVariable($name) }
     foreach ($name in $script:SandboxVars) { [Environment]::SetEnvironmentVariable($name, $null) }
     $env:HOME = $sandbox.Home
     if ($IsWindows) {
         $env:USERPROFILE = $sandbox.Home
         $env:LOCALAPPDATA = $sandbox.Local
+        $env:APPDATA = $sandbox.Roaming
     }
     $env:MISE_DATA_DIR = Join-Path $script:SharedMise 'data'
     $env:MISE_CACHE_DIR = Join-Path $script:SharedMise 'cache'
@@ -50,6 +54,15 @@ function Remove-PovySandbox($Sandbox) {
 function Invoke-PovyCli {
     $output = & $script:Pwsh -NoProfile -File (Join-Path $script:PovyRoot 'bin/povy.ps1') @args 2>&1
     return [pscustomobject]@{ Code = $LASTEXITCODE; Output = (@($output) -join "`n") }
+}
+
+# A bare repository whose main branch is the commit under test. Bare, because Git
+# refuses to fetch into the checked-out branch, which main is when Git defaults to it.
+function New-PovySourceRepo([string]$Dest) {
+    git init --quiet --bare $Dest
+    git -C $Dest fetch --quiet $script:PovyRoot "$(git -C $script:PovyRoot rev-parse HEAD):refs/heads/main"
+    if ($LASTEXITCODE -ne 0) { throw "could not fetch the commit under test into $Dest" }
+    git -C $Dest symbolic-ref HEAD refs/heads/main
 }
 
 function Initialize-PovyGitRepo([string]$Dir) {

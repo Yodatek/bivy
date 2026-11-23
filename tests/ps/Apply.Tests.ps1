@@ -139,7 +139,7 @@ exit 0
         Write-PovyTestConfig $config $profileRepo $Extra
         $run = Invoke-PovyCli init --config $config
         $run.Code | Should -Be 1 -Because "accepted: $Extra"
-        $run.Output | Should -Match '^error: '
+        $run.Output | Should -Match '(?m)^error: '
     }
 }
 

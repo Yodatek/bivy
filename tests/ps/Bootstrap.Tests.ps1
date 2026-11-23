@@ -23,10 +23,8 @@ Describe 'bootstrap.ps1' {
     }
 
     It 'clones the engine, installs the povy command and puts it on the user PATH' -Skip:(-not $IsWindows) {
-        # A repository with a main branch at the commit under test.
         $source = Join-Path $sandbox.Root 'source'
-        git init --quiet $source
-        git -C $source fetch --quiet $script:PovyRoot "$(git -C $script:PovyRoot rev-parse HEAD):refs/heads/main"
+        New-PovySourceRepo $source
         $env:POVY_REPO = $source
         $env:POVY_BRANCH = 'main'
         $env:POVY_BOOTSTRAP_NO_INIT = '1'

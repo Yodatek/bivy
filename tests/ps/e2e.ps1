@@ -37,11 +37,12 @@ function Invoke-E2eStep([string]$Title, [scriptblock]$Block) {
     return $output
 }
 
-# A repository with a main branch at the commit under test, for the engine and the
-# profile alike.
-$source = Join-Path $work 'source'
-git init --quiet $source
+# A bare repository whose main branch is the commit under test, for the engine and
+# the profile alike. Bare, because Git refuses to fetch into the checked-out branch.
+$source = Join-Path $work 'source.git'
+git init --quiet --bare $source
 git -C $source fetch --quiet $root "$(git -C $root rev-parse HEAD):refs/heads/main"
+Assert-E2e ($LASTEXITCODE -eq 0) 'could not fetch the commit under test'
 git -C $source symbolic-ref HEAD refs/heads/main
 
 Write-E2eLog '::group::bootstrap.ps1, through Invoke-Expression'
