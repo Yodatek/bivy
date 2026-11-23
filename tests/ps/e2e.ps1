@@ -71,23 +71,33 @@ $again = Invoke-E2eStep 'povy apply, again' { & $povy apply }
 Assert-E2e ($again -match 'Applied: 0 written') 'the second apply changed something'
 Invoke-E2eStep 'povy doctor' { & $povy doctor } | Out-Null
 
-# A new PowerShell session, which loads the profile.
-$session = Invoke-E2eStep 'a new PowerShell session' {
-    pwsh -Command 'sample-hello e2e; (Get-Command ll).CommandType; jq --version; node --version; prettier --version; git config --global user.email'
-}
-foreach ($expected in 'hello from the sample profile, e2e', 'Function', 'jq-1.7.1', 'v22.', 'ada@example.org') {
-    Assert-E2e ($session.Contains($expected)) "the new session lacks: $expected"
-}
-
-# A new process outside PowerShell, with the PATH Windows gives it: the system one,
-# then the user one that povy set. starship comes from the mise shims only.
-$saved = $env:Path
+# New processes run from the work directory: in the povy checkout, its mise.toml
+# would install the development tools of povy. The PowerShell is this one, not a
+# shim. Git only follows the include of the identity with --includes, since
+# --global reads one file.
+$pwsh = (Get-Process -Id $PID).Path
+Push-Location -LiteralPath $work
 try {
-    $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
-    $cmd = Invoke-E2eStep 'a new cmd.exe process' { cmd /c 'starship --version' }
+    # A new PowerShell session, which loads the profile.
+    $session = Invoke-E2eStep 'a new PowerShell session' {
+        & $pwsh -Command 'sample-hello e2e; (Get-Command ll).CommandType; jq --version; node --version; prettier --version; git config --global --includes user.email'
+    }
+    foreach ($expected in 'hello from the sample profile, e2e', 'Function', 'jq-1.7.1', 'v22.', 'ada@example.org') {
+        Assert-E2e ($session.Contains($expected)) "the new session lacks: $expected"
+    }
+
+    # A new process outside PowerShell, with the PATH Windows gives it: the system
+    # one, then the user one that povy set. starship comes from the mise shims only.
+    $saved = $env:Path
+    try {
+        $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+        $cmd = Invoke-E2eStep 'a new cmd.exe process' { cmd /c 'starship --version' }
+    } finally {
+        $env:Path = $saved
+    }
+    Assert-E2e ($cmd.Contains('starship 1.27.0')) 'cmd.exe does not see starship from the mise shims'
 } finally {
-    $env:Path = $saved
+    Pop-Location
 }
-Assert-E2e ($cmd.Contains('starship 1.27.0')) 'cmd.exe does not see starship from the mise shims'
 
 Write-E2eLog 'e2e: all good'
