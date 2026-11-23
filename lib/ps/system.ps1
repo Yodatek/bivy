@@ -87,8 +87,23 @@ function Get-PovyWantedPath {
     return $wanted.ToArray()
 }
 
+# On Windows, a mise shim is a small program that runs mise itself, so a new process
+# needs mise on its PATH too. Returns the directory of mise when the system PATH
+# lacks it, and $null otherwise.
+function Get-PovyMissingMiseDir {
+    if (-not $IsWindows) { return $null }
+    $mise = Get-PovyMise
+    if (-not $mise) { return $null }
+    $dir = Split-Path -Parent $mise
+    $key = ConvertTo-PovyComparablePath $dir
+    $machine = @([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';' | Where-Object { $_ })
+    if (@($machine | Where-Object { (ConvertTo-PovyComparablePath $_) -eq $key }).Count -gt 0) { return $null }
+    return $dir
+}
+
 # Puts the wanted directories first in the user PATH. Entries povy owns, under its
-# data directory or the shims, are replaced; every other entry stays as it was.
+# data directory or the shims, are replaced; every other entry stays as it was. The
+# directory of mise, when the shims need it, goes at the end and stays there.
 function Update-PovyUserPath {
     $raw = Get-PovyUserPathValue
     $entries = @($raw -split ';' | Where-Object { $_ })
@@ -100,7 +115,15 @@ function Update-PovyUserPath {
             $key = ConvertTo-PovyComparablePath $_
             -not ($key -eq $shims -or ($key + [System.IO.Path]::DirectorySeparatorChar).StartsWith($owned) -or $wantedKeys -contains $key)
         })
-    $value = (@($wanted) + $others) -join ';'
+    $new = @($wanted) + $others
+    $miseDir = Get-PovyMissingMiseDir
+    if ($miseDir) {
+        $miseKey = ConvertTo-PovyComparablePath $miseDir
+        if (@($new | Where-Object { (ConvertTo-PovyComparablePath $_) -eq $miseKey }).Count -eq 0) {
+            $new += ConvertTo-PovyPathEntry $miseDir
+        }
+    }
+    $value = $new -join ';'
     if ($value -ceq $raw) {
         $script:PovyUnchanged++
         return

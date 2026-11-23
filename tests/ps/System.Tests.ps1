@@ -94,7 +94,12 @@ Describe 'the user PATH' {
         $expanded[2] | Should -Be ([IO.Path]::GetFullPath($script:PovyLauncherDir))
         $entries[3] | Should -BeExactly '%POVY_TEST_UNSET%\tools'
         $entries[4] | Should -Be $other
-        $entries.Count | Should -Be 5
+        # On Windows, mise itself follows when the system PATH lacks it: its shims need it.
+        $miseDir = Get-PovyMissingMiseDir
+        if ($miseDir) {
+            [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($entries[5])) | Should -Be ([IO.Path]::GetFullPath($miseDir))
+        }
+        $entries.Count | Should -Be (5 + [int][bool]$miseDir)
     }
 
     It 'changes nothing on a second run' {

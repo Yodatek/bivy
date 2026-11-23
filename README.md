@@ -38,7 +38,8 @@ PowerShell engine reads the same `config.toml` and profiles, and offers `povy in
 `apply`, `doctor` and `version`. What changes on Windows:
 
 - The mise shims and the profile commands go on the user `PATH`, which every new
-  process gets, graphical apps included. Windows puts the system `PATH` first, so a
+  process gets, graphical apps included, and so does mise itself when the system
+  `PATH` lacks it, since its shims run it. Windows puts the system `PATH` first, so a
   tool also installed for the whole machine wins outside PowerShell; `povy doctor`
   names it. PowerShell sessions put the shims first.
 - Your PowerShell profile gets a marked block that sources the profile's `.ps1` shell

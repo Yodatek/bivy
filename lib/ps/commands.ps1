@@ -347,6 +347,12 @@ function Invoke-PovyDoctor {
     } else {
         Write-PovyDoctorFailure 'the mise shims are not on the user PATH; run: povy apply'
     }
+    $miseDir = Get-PovyMissingMiseDir
+    if ($miseDir -and -not (Test-PovyOnUserPath $miseDir)) {
+        Write-PovyDoctorFailure "mise is not on the PATH of new processes, so its shims fail there; run: povy apply"
+    } elseif ($IsWindows -and $mise) {
+        Write-PovyDoctorOk 'mise is on the PATH of new processes, for its shims'
+    }
     if ($configOk) { Test-PovyShadowedShim }
     if ($script:DoctorFailed) {
         Write-Output 'povy doctor found problems.'
