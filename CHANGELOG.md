@@ -6,6 +6,8 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
 povy becomes a thin layer over mise: a profile is mise configuration that `mise bootstrap` applies, and povy keeps what mise leaves out. "From povy 0.1" in the README lists what to move.
 
 ### Added
@@ -50,5 +52,6 @@ First release.
 - A sample profile in `_samples/profile`.
 - `povy --version`.
 
-[Unreleased]: https://github.com/Yodatek/povy/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Yodatek/povy/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Yodatek/povy/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Yodatek/povy/releases/tag/v0.1.0
