@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# The banner: what it shows, the problems it reports, and when it keeps quiet.
+# The banner: what it shows, the few problems it reports, and when it keeps quiet.
 
 load helper
 
@@ -15,32 +15,36 @@ setup_file() {
   povy apply
 }
 
-# The dates matter: the banner compares config.toml and .env with the last apply.
 setup() {
   sandbox_setup
   cp -Rp "$BATS_FILE_TMPDIR/seed/." "$HOME/"
   SHIMS=$MISE_DATA_DIR/shims
-  printf '%s\n' "$SHIMS:/usr/bin:/bin" >"${POVY_LAUNCHCTL%/*}/PATH"
   cd "$HOME"
 }
 
-# Runs the banner with the PATH that the startup files give a terminal.
-banner() {
-  PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner "$@"
+# The compact banner with ASCII marks, whatever the locale and the width of the
+# terminal that runs the tests. The caller sets PATH.
+ascii_banner() {
+  LC_ALL=C LANG=C COLUMNS=0 "$POVY_ROOT/bin/povy" banner "$@"
 }
 
-@test "a healthy machine: who and where, its load, its tools, all good" {
+# The same with the PATH that the startup files give a terminal.
+banner() {
+  PATH="$SHIMS:$PATH" ascii_banner "$@"
+}
+
+@test "a healthy machine: who and where, its load, its tools, tools ready" {
   run banner
   echo "$output"
   [ "$status" -eq 0 ]
-  [[ "${lines[0]}" == *povy*"$(id -un)@"*"profile profile"* ]]
-  [[ "${lines[1]}" == *"cpu "*"%"* ]]
-  [[ "${lines[1]}" == *"ram "*"%"*G* ]]
-  [[ "${lines[1]}" == *"disk "*"%"*G* ]]
-  [[ "${lines[2]}" == *"jq 1.7.1"* ]]
-  [[ "$output" != *"yq "* ]]
-  [[ "$output" == *"all good"* ]]
-  [[ "$output" != *$'\033'* ]]
+  [[ "${lines[0]}" == *povy*"$(id -un)@"*"profile profile"* ]] || false
+  [[ "${lines[1]}" == *"cpu "*"%"* ]] || false
+  [[ "${lines[1]}" == *"ram "*"%"*G* ]] || false
+  [[ "${lines[1]}" == *"disk "*"%"*G* ]] || false
+  [[ "${lines[2]}" == *"jq 1.7.1"* ]] || false
+  [[ "$output" != *"yq "* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = "   ok tools ready" ]
+  [[ "$output" != *$'\033'* ]] || false
 }
 
 @test "versions are shortened, the first of a list comes first" {
@@ -52,45 +56,23 @@ banner() {
 }
 
 @test "each problem gets a line, and doctor is suggested" {
-  sed -i.bak 's/^EXAMPLE_API_TOKEN=x$/EXAMPLE_API_TOKEN=/' "$HOME/.config/povy/.env"
-  chmod 644 "$HOME/.config/povy/.env"
-  touch -t 203001010000 "$HOME/.config/povy/config.toml"
-  rm "$HOME/.config/povy-example/example.conf"
-  printf '[user]\n\temail = old@example.org\n' >>"$HOME/.gitconfig"
+  printf '[tools]\njq = "1.5"\n' >"$HOME/.config/mise/conf.d/zz-test.toml"
+  rm "$HOME/.local/state/povy/applied"
   run banner
   echo "$output"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"empty secrets in ~/.config/povy/.env: EXAMPLE_API_TOKEN"* ]]
-  [[ "$output" == *"~/.config/povy/.env has mode 644, expected 600"* ]]
-  [[ "$output" == *"config.toml changed since the last povy apply"* ]]
-  [[ "$output" == *".env changed since the last povy apply"* ]]
-  [[ "$output" == *"~/.config/povy-example/example.conf is missing"* ]]
-  [[ "$output" == *"overrides it in: $HOME/.gitconfig"* ]]
-  [[ "$output" == *"povy doctor tells more"* ]]
-  [[ "$output" != *"all good"* ]]
-}
-
-@test "a shell without the shims on its PATH is reported" {
-  run "$POVY_ROOT/bin/povy" banner
-  echo "$output"
-  [[ "$output" == *"shims are not on the PATH of this shell"* ]]
-}
-
-@test "a command that an earlier directory of PATH hides is reported" {
-  mkdir -p "$HOME/fakebin"
-  printf '#!/bin/sh\necho fake\n' >"$HOME/fakebin/jq"
-  chmod +x "$HOME/fakebin/jq"
-  run env PATH="$HOME/fakebin:$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
-  echo "$output"
-  [[ "$output" == *"~/fakebin hides jq before the mise shims"* ]]
+  [[ "$output" == *$'\n''   x not installed: jq@1.5; run: povy apply'$'\n'* ]] || false
+  [[ "$output" == *$'\n''   ! povy apply has not run yet'$'\n'* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = "   povy doctor tells more" ]
+  [[ "$output" != *"tools ready"* ]] || false
 }
 
 @test "a tool that is declared but not installed is reported" {
-  printf '[tools]\njq = "1.6"\n' >"$HOME/.config/mise/conf.d/zz-test.toml"
+  printf '[tools]\njq = "1.5"\n' >"$HOME/.config/mise/conf.d/zz-test.toml"
   run banner
   echo "$output"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"not installed: jq@1.6; run: povy apply"* ]]
+  [[ "$output" == *"not installed: jq@1.5; run: povy apply"* ]] || false
 }
 
 @test "before the first apply, the banner says so" {
@@ -98,15 +80,49 @@ banner() {
   run banner
   echo "$output"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"povy apply has not run yet"* ]]
+  [[ "$output" == *"povy apply has not run yet"* ]] || false
 }
 
-@test "macOS: graphical apps without the shims are reported" {
-  [ "$(uname -s)" = Darwin ] || skip "macOS only"
-  rm "${POVY_LAUNCHCTL%/*}/PATH"
-  run banner
+@test "a machine without mise is reported, and the banner still shows" {
+  local tool bin=$BATS_TEST_TMPDIR/bin
+  mkdir "$bin"
+  for tool in bash env sh uname grep tail head stat dirname readlink awk tr cat sed date df id tput \
+    getconf sort locale; do
+    ln -s "$(command -v "$tool")" "$bin/$tool" 2>/dev/null || true
+  done
+  PATH=$bin run ascii_banner
   echo "$output"
-  [[ "$output" == *"graphical apps do not see the shims"* ]]
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" == *povy*"$(id -un)@"* ]] || false
+  [[ "$output" == *"x mise is not installed; run the povy bootstrap"* ]] || false
+  [[ "$output" == *"povy doctor tells more"* ]] || false
+}
+
+@test "a disk almost full is reported" {
+  mkdir -p "$BATS_TEST_TMPDIR/stubs"
+  cat >"$BATS_TEST_TMPDIR/stubs/df" <<'SH'
+#!/bin/sh
+echo 'Filesystem 1024-blocks Used Available Capacity Mounted on'
+echo '/dev/disk1 1000000000 950000000 50000000 95% /'
+SH
+  chmod +x "$BATS_TEST_TMPDIR/stubs/df"
+  PATH="$BATS_TEST_TMPDIR/stubs:$SHIMS:$PATH" run ascii_banner
+  echo "$output"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"disk 95%"* ]] || false
+  [[ "$output" == *"! the disk holding $HOME is almost full"* ]] || false
+}
+
+@test "the thorough checks are left to doctor" {
+  # Things doctor reports, and the banner does not look at.
+  chmod 644 "$HOME/.config/povy/.env"
+  sed -i.bak 's/^EXAMPLE_API_TOKEN=x$/EXAMPLE_API_TOKEN=/' "$HOME/.config/povy/.env"
+  printf '[user]\n\temail = old@example.org\n' >>"$HOME/.gitconfig"
+  rm "$HOME/.config/povy-example/example.conf"
+  run ascii_banner
+  echo "$output"
+  [ "$status" -eq 0 ]
+  [ "${lines[${#lines[@]} - 1]}" = "   ok tools ready" ]
 }
 
 @test "--auto keeps quiet in IDEs and agents, and POVY_BANNER decides" {
@@ -121,9 +137,9 @@ banner() {
     }
   done
   run env TERM_PROGRAM=vscode POVY_BANNER=1 PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner --auto
-  [[ "$output" == *"all good"* ]]
+  [[ "$output" == *"tools ready"* ]] || false
   TERM=xterm-256color run banner --auto
-  [[ "$output" == *"all good"* ]]
+  [[ "$output" == *"tools ready"* ]] || false
 }
 
 @test "the startup files show nothing in a shell that is not interactive or not in a terminal" {
@@ -145,7 +161,8 @@ banner() {
   else
     run script -qec "env TERM=xterm-256color PATH='/usr/bin:/bin:$PATH' bash -l -i -c true" /dev/null </dev/null
   fi
-  [ "$(printf '%s\n' "$output" | grep -c 'all good')" -eq 1 ]
+  echo "$output"
+  [ "$(printf '%s\n' "$output" | grep -c 'tools ready')" -eq 1 ]
 }
 
 @test "banner = false in config.toml keeps the startup files quiet" {
@@ -153,10 +170,10 @@ banner() {
   printf 'banner = false\n' >>"$BATS_TEST_TMPDIR/c.toml"
   povy init --config "$BATS_TEST_TMPDIR/c.toml"
   povy apply
-  ! grep -q 'banner --auto' "$HOME/.config/povy/interactive.sh"
+  ! grep -q 'banner --auto' "$HOME/.config/povy/interactive.sh" || false
   run banner
   echo "$output"
-  [[ "$output" == *"all good"* ]]
+  [[ "$output" == *"tools ready"* ]] || false
 }
 
 @test "banner must be true or false" {
@@ -164,7 +181,7 @@ banner() {
   printf 'banner = "no"\n' >>"$BATS_TEST_TMPDIR/c.toml"
   run povy init --config "$BATS_TEST_TMPDIR/c.toml"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"banner must be true or false"* ]]
+  [[ "$output" == *"banner must be true or false"* ]] || false
 }
 
 # A UTF-8 locale this system has: en_US on macOS, C on most Linux.
@@ -180,46 +197,51 @@ wide_banner() {
   echo "$output"
 }
 
-@test "a wide UTF-8 terminal gets the framed banner, every framed row the same width" {
-  wide_banner
-  [ "$status" -eq 0 ]
-  [[ "${lines[0]}" == "  ╭"*"╮" ]]
-  [[ "$output" == *"██████╗  ██████╗ ██╗   ██╗██╗   ██╗"* ]]
-  [[ "$output" == *"╭─ system"* && "$output" == *"├─ tools"* ]]
-  [[ "${lines[${#lines[@]} - 1]}" == "  ╰─ ✓ all good"* ]]
-  [[ "$output" != *"health"* ]]
-  local loc width line
-  loc=$(utf8_locale)
+# Every framed row has the width of the first line.
+same_width() {
+  local loc=$1 width line
   width=$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "${lines[0]}")
   for line in "${lines[@]}"; do
     case "$line" in
-      "  │"*"│") [ "$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "$line")" -eq "$width" ] ;;
+      "  │"*"│")
+        [ "$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "$line")" -eq "$width" ] || {
+          echo "not $width wide: $line"
+          return 1
+        }
+        ;;
     esac
   done
 }
 
+@test "a wide UTF-8 terminal gets the framed banner, every framed row the same width" {
+  wide_banner
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" == "  ╭"*"╮" ]] || false
+  [[ "$output" == *"██████╗  ██████╗ ██╗   ██╗██╗   ██╗"* ]] || false
+  [[ "$output" == *"╭─ system"* && "$output" == *"├─ tools"* ]] || false
+  [[ "$output" == *"│  jq  1.7.1"* ]] || false
+  [[ "${lines[${#lines[@]} - 1]}" == "  ╰─ ✓ tools ready  povy doctor checks the rest" ]] || false
+  [[ "$output" != *"health"* ]] || false
+  same_width "$(utf8_locale)"
+}
+
 @test "a long host name stays inside the frame" {
-  local loc width line host
+  local loc host
   loc=$(utf8_locale)
   [ -n "$loc" ] || skip "no UTF-8 locale"
   host=$(printf 'h%.0s' $(seq 1 90))
   run env HOSTNAME="$host" COLUMNS=100 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
   echo "$output"
-  [[ "$output" == *"hhh…"* ]]
-  width=$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "${lines[0]}")
-  for line in "${lines[@]}"; do
-    case "$line" in
-      "  │"*"│") [ "$(LC_ALL=$loc bash -c 'printf "%s" "${#1}"' _ "$line")" -eq "$width" ] ;;
-    esac
-  done
+  [[ "$output" == *"hhh…"* ]] || false
+  same_width "$loc"
 }
 
 @test "in the framed banner, a problem opens the health section" {
-  rm "$HOME/.config/povy-example/example.conf"
+  rm "$HOME/.local/state/povy/applied"
   wide_banner
-  [[ "$output" == *"├─ health"* ]]
-  [[ "$output" == *"│  ✗ ~/.config/povy-example/example.conf is missing; run: povy apply"* ]]
-  [[ "${lines[${#lines[@]} - 1]}" == "  ╰─ povy doctor tells more" ]]
+  [[ "$output" == *"├─ health"* ]] || false
+  [[ "$output" == *"│  ! povy apply has not run yet"* ]] || false
+  [ "${lines[${#lines[@]} - 1]}" = "  ╰─ povy doctor tells more" ]
 }
 
 @test "a narrow terminal or a locale without UTF-8 gets the compact banner" {
@@ -227,16 +249,16 @@ wide_banner() {
   loc=$(utf8_locale)
   [ -n "$loc" ] || skip "no UTF-8 locale"
   run env COLUMNS=70 LANG="$loc" LC_ALL="$loc" PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
-  [[ "$output" != *"╭"* ]]
-  [[ "$output" == *"all good"* ]]
+  [[ "$output" != *"╭"* ]] || false
+  [[ "$output" == *"✓ tools ready"* ]] || false
   run env COLUMNS=100 LANG=C LC_ALL=C PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
-  [[ "$output" != *"╭"* ]]
-  [[ "$output" == *"all good"* ]]
+  [[ "$output" != *"╭"* ]] || false
+  [[ "$output" == *"ok tools ready"* ]] || false
 }
 
 @test "CLICOLOR_FORCE colours the banner outside a terminal, and NO_COLOR wins" {
   run env CLICOLOR_FORCE=1 PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
-  [[ "$output" == *$'\033['* ]]
+  [[ "$output" == *$'\033['* ]] || false
   run env CLICOLOR_FORCE=1 NO_COLOR=1 PATH="$SHIMS:$PATH" "$POVY_ROOT/bin/povy" banner
-  [[ "$output" != *$'\033['* ]]
+  [[ "$output" != *$'\033['* ]] || false
 }

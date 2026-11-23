@@ -40,6 +40,7 @@ povy_init_paths() {
   POVY_BACKUP_ROOT="$POVY_STATE_DIR/backups"
   POVY_MISE_CONF="${MISE_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/mise}/conf.d/povy.toml"
   POVY_SHIMS_DIR="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims"
+  POVY_INSTALLS_DIR="${POVY_SHIMS_DIR%/shims}/installs"
   POVY_LOCAL_BIN="$HOME/.local/bin"
   POVY_GIT_DIR="$POVY_CONFIG_DIR/git"
 }
@@ -287,13 +288,25 @@ mise_run() {
   (cd "$HOME" && MISE_YES=1 "$bin" "$@" </dev/null)
 }
 
+# mise looks yq up without povy's conf.d file, so that a team.toml that mise cannot
+# read keeps neither povy from reading its configuration nor apply from pulling the
+# team's fix. Run from HOME, mise also reads that file as a project config, under its
+# physical path, which differs when HOME goes through a link, as /var does on macOS.
+yq_mise() {
+  local ignored=$POVY_MISE_CONF dir
+  if dir=$(cd "${POVY_MISE_CONF%/*}" 2>/dev/null && pwd -P); then
+    ignored="$ignored:$dir/${POVY_MISE_CONF##*/}"
+  fi
+  MISE_IGNORED_CONFIG_PATHS="$ignored${MISE_IGNORED_CONFIG_PATHS:+:$MISE_IGNORED_CONFIG_PATHS}" mise_run "$@"
+}
+
 # yq comes from mise and parses every TOML file. yq_resolve never installs, so
 # that doctor reports the state rather than changing it.
 yq_resolve() {
   local dir
   [ -z "$POVY_YQ" ] || return 0
   mise_find >/dev/null || return 1
-  dir=$(mise_run where "$POVY_YQ_TOOL" 2>/dev/null) || return 1
+  dir=$(yq_mise where "$POVY_YQ_TOOL" 2>/dev/null) || return 1
   [ -x "$dir/yq" ] || return 1
   POVY_YQ="$dir/yq"
 }
@@ -302,7 +315,7 @@ yq_ensure() {
   yq_resolve && return 0
   mise_find >/dev/null || die "mise is not installed; run the povy bootstrap first"
   info "installing $POVY_YQ_TOOL with mise"
-  mise_run install "$POVY_YQ_TOOL" >/dev/null 2>&1 || die "could not install $POVY_YQ_TOOL with mise"
+  yq_mise install "$POVY_YQ_TOOL" >/dev/null 2>&1 || die "could not install $POVY_YQ_TOOL with mise"
   yq_resolve || die "$POVY_YQ_TOOL is not available after installation"
 }
 

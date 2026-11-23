@@ -2,7 +2,9 @@
 # End-to-end run of povy on a real Windows, for CI: the bootstrap as irm | iex runs
 # it, then init, apply and doctor with the sample profile, without any test seam.
 # It changes the user PATH, the PowerShell profile and the Git config of the machine,
-# so it refuses to run anywhere but in CI.
+# and installs the tools of the sample with mise, so it refuses to run anywhere but
+# in CI. The sample installs no package on Windows: its [bootstrap.packages] only
+# lists brew, apt and dnf.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingInvokeExpression', '',
     Justification = 'The bootstrap is meant to run through Invoke-Expression, as irm | iex does')]
 param()
@@ -35,6 +37,15 @@ function Invoke-E2eStep([string]$Title, [scriptblock]$Block) {
     Write-E2eLog '::endgroup::'
     Assert-E2e ($code -eq 0) "$Title failed with exit code $code"
     return $output
+}
+
+# Whether only the current user can read a file, with nothing inherited.
+function Test-E2eOwnerOnly([string]$Path) {
+    $acl = Get-Acl -LiteralPath $Path
+    $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+    $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+    $others = @($rules | Where-Object { $_.IdentityReference -ne $user })
+    return ($acl.AreAccessRulesProtected -and $rules.Count -gt 0 -and $others.Count -eq 0)
 }
 
 # A bare repository whose main branch is the commit under test, for the engine and
@@ -71,20 +82,34 @@ $again = Invoke-E2eStep 'povy apply, again' { & $povy apply }
 Assert-E2e ($again -match 'Applied: 0 written') 'the second apply changed something'
 Invoke-E2eStep 'povy doctor' { & $povy doctor } | Out-Null
 
+# mise writes no file on Windows: povy writes those of [_.povy.windows], the template
+# with the secret of .env, for the owner alone.
+$sampleConf = Join-Path $HOME '.config\povy-sample\sample.conf'
+Assert-E2e (Test-Path -LiteralPath $sampleConf) 'povy did not write sample.conf'
+Assert-E2e (@(Get-Content -LiteralPath $sampleConf) -contains 'token = e2e') 'sample.conf lacks the secret of .env'
+Assert-E2e (Test-E2eOwnerOnly $sampleConf) 'sample.conf is readable by others'
+$starshipConf = Join-Path $HOME '.config\starship.toml'
+Assert-E2e (Test-Path -LiteralPath $starshipConf) 'povy did not write starship.toml'
+Assert-E2e (@(Get-Content -LiteralPath $starshipConf) -contains 'add_newline = false') 'starship.toml is not the one of the sample'
+
 # New processes run from the work directory: in the povy checkout, its mise.toml
 # would install the development tools of povy. The PowerShell is this one, not a
 # shim. Git only follows the include of the identity with --includes, since
 # --global reads one file.
 $pwsh = (Get-Process -Id $PID).Path
+$sampleRoot = Join-Path $env:LOCALAPPDATA 'povy\state\profile\_samples\profile'
+$sampleHello = Join-Path $sampleRoot 'bin\sample-hello.ps1'
+$aliases = Join-Path $sampleRoot 'shell\aliases.ps1'
 Push-Location -LiteralPath $work
 try {
     # A new PowerShell session, which loads the profile.
     $session = Invoke-E2eStep 'a new PowerShell session' {
-        & $pwsh -Command 'sample-hello e2e; (Get-Command ll).CommandType; jq --version; node --version; prettier --version; git config --global --includes user.email'
+        & $pwsh -Command 'sample-hello e2e; (Get-Command sample-hello).Source; (Get-Command ll).CommandType; (Get-Command ll).ScriptBlock.File; jq --version; node --version; prettier --version; git config --global --includes user.email'
     }
-    foreach ($expected in 'hello from the sample profile, e2e', 'Function', 'jq-1.7.1', 'v22.', 'ada@example.org') {
+    foreach ($expected in 'hello from the sample profile, e2e', $sampleHello, 'Function', $aliases, 'jq-1.7.1', 'v22.', 'ada@example.org') {
         Assert-E2e ($session.Contains($expected)) "the new session lacks: $expected"
     }
+    Assert-E2e ($session -match '(?m)^3\.\d+\.\d+\s*$') 'the new session lacks prettier 3'
 
     # A new process outside PowerShell, with the PATH Windows gives it: the system
     # one, then the user one that povy set. starship comes from the mise shims only.

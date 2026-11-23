@@ -1,0 +1,25 @@
+# What mise bootstrap applies for the test profile.
+
+[bootstrap.secrets]
+example_api_token = { env = "EXAMPLE_API_TOKEN", description = "A token for the example" }
+
+[bootstrap.directories."~/.config"]
+os = "unix"
+
+[bootstrap.directories."~/.config/povy-example"]
+os = "unix"
+
+[bootstrap.files."~/.config/povy-example/example.conf"]
+os = "unix"
+source = "./files/example.conf"
+template = true
+mode = "0600"
+
+# What povy does itself: the profile's commands on every PATH, and on Windows,
+# where mise writes no file, the files and the PowerShell code.
+[_.povy]
+bin = "bin"
+
+[_.povy.windows]
+files = ["~/.config/povy-example/example.conf"]
+shell = ["shell/example.ps1"]

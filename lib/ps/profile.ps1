@@ -1,11 +1,26 @@
-# A profile is an external Git repository holding a profile.toml, read with the same
-# rules as the bash engine. On Windows, povy sources the .ps1 files of its shell list
-# and leaves the others to zsh and bash.
+# A profile is a team's Git repository in mise's own format, read as the bash engine
+# reads it: team.toml, which mise includes in every directory; mise.toml, the
+# project that mise bootstrap applies; and its [_.povy] table, which mise ignores:
+#   bin               a directory of commands that povy puts on every PATH
+#   [_.povy.windows]  files: [bootstrap.files] targets that povy writes on Windows,
+#                     where mise writes none; shell: .ps1 files that interactive
+#                     PowerShell sources
 
-$script:PovySecretRe = '^[A-Za-z_][A-Za-z0-9_]*$'
-$script:Prof = [ordered]@{
-    Secrets = @(); Tools = [ordered]@{}; Prompt = ''; Packages = @(); Bin = ''; Shell = @(); Files = @()
+# An expression may span lines, as in Tera.
+$script:PovyTemplatePattern = '(?s)\{\{(.*?)\}\}'
+
+# Names of secrets and vars match exactly, as in mise.
+function New-PovyNameTable {
+    return [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
 }
+
+function New-PovyProfileState {
+    return [ordered]@{
+        Team = ''; Project = ''; Bin = ''; Secrets = (New-PovyNameTable); Vars = (New-PovyNameTable)
+        WindowsFiles = @(); WindowsShell = @()
+    }
+}
+$script:Prof = New-PovyProfileState
 
 # Arguments go in one array: a bare -- given to a PowerShell function never reaches it.
 function Invoke-PovyGit([string[]]$Arguments) {
@@ -14,39 +29,46 @@ function Invoke-PovyGit([string[]]$Arguments) {
     return [pscustomobject]@{ Code = $code; Output = (@($output) -join "`n").Trim() }
 }
 
-# Clones the profile on its default branch, or on the branch given. The clone keeps
-# the branch it was asked for, so that a new branch, or none, gives a new clone.
-function Copy-PovyProfile([string]$Url, [string]$Branch) {
+# Clones the profile, then checks out the ref given: a branch, a tag or a commit.
+# The clone keeps the ref it was asked for, so that another ref, or none, gives a
+# new clone.
+function Copy-PovyProfile([string]$Url, [string]$Ref) {
     $tmp = Join-Path $script:PovyStateDir ('profile-clone.' + [System.Guid]::NewGuid().ToString('N').Substring(0, 8))
-    $cloneArgs = @('clone', '--quiet')
-    if ($Branch) { $cloneArgs += @('--branch', $Branch) }
-    $cloneArgs += @('--', $Url, (Join-Path $tmp 'profile'))
-    $clone = Invoke-PovyGit $cloneArgs
-    if ($clone.Code -eq 0) { $clone = Invoke-PovyGit @('-C', (Join-Path $tmp 'profile'), 'config', 'povy.branch', $Branch) }
-    if ($clone.Code -ne 0) {
+    $clone = Join-Path $tmp 'profile'
+    $result = Invoke-PovyGit @('clone', '--quiet', '--', $Url, $clone)
+    if ($result.Code -eq 0 -and $Ref) { $result = Invoke-PovyGit @('-C', $clone, 'checkout', '--quiet', $Ref, '--') }
+    if ($result.Code -eq 0) { $result = Invoke-PovyGit @('-C', $clone, 'config', 'povy.ref', $Ref) }
+    $suffix = if ($Ref) { ", ref $Ref" } else { '' }
+    if ($result.Code -ne 0) {
         Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction Ignore
-        $suffix = if ($Branch) { ", branch $Branch" } else { '' }
         Stop-Povy "could not clone the profile: $Url$suffix"
     }
     if (Test-Path -LiteralPath $script:PovyProfileDir) { Remove-Item -LiteralPath $script:PovyProfileDir -Recurse -Force }
-    Move-Item -LiteralPath (Join-Path $tmp 'profile') -Destination $script:PovyProfileDir
+    Move-Item -LiteralPath $clone -Destination $script:PovyProfileDir
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction Ignore
-    $suffix = if ($Branch) { ", branch $Branch" } else { '' }
     Write-PovyInfo "cloned profile $Url$suffix"
 }
 
-# An unreachable remote must not block a machine that already has its profile.
-function Sync-PovyProfile([string]$Url, [string]$Branch) {
+# A branch follows its remote; a tag is looked up again, as it may have moved; a
+# commit stays. An unreachable remote must not block a machine that already has
+# its profile.
+function Sync-PovyProfile([string]$Url, [string]$Ref) {
     if (-not $Url) { return }
-    $current = Invoke-PovyGit @('-C', $script:PovyProfileDir, 'remote', 'get-url', 'origin')
-    $currentBranch = Invoke-PovyGit @('-C', $script:PovyProfileDir, 'config', '--get', 'povy.branch')
+    $dir = $script:PovyProfileDir
+    $current = Invoke-PovyGit @('-C', $dir, 'remote', 'get-url', 'origin')
+    $currentRef = Invoke-PovyGit @('-C', $dir, 'config', '--get', 'povy.ref')
     $currentUrl = if ($current.Code -eq 0) { $current.Output } else { '' }
-    $branchNow = if ($currentBranch.Code -eq 0) { $currentBranch.Output } else { '' }
-    if ($currentUrl -cne $Url -or $branchNow -cne $Branch) {
-        Copy-PovyProfile $Url $Branch
-    } elseif ((Invoke-PovyGit @('-C', $script:PovyProfileDir, 'pull', '--quiet', '--ff-only')).Code -ne 0) {
-        Write-PovyWarning 'could not update the profile, using the local copy'
+    if ($currentUrl -cne $Url -or $currentRef.Code -ne 0 -or $currentRef.Output -cne $Ref) {
+        Copy-PovyProfile $Url $Ref
+        return
     }
+    if ((Invoke-PovyGit @('-C', $dir, 'symbolic-ref', '--quiet', 'HEAD')).Code -eq 0) {
+        $ok = (Invoke-PovyGit @('-C', $dir, 'pull', '--quiet', '--ff-only')).Code -eq 0
+    } else {
+        $ok = (Invoke-PovyGit @('-C', $dir, 'fetch', '--quiet', '--tags', '--force', 'origin')).Code -eq 0 -and
+            (Invoke-PovyGit @('-C', $dir, 'checkout', '--quiet', $Ref, '--')).Code -eq 0
+    }
+    if (-not $ok) { Write-PovyWarning 'could not update the profile, using the local copy' }
 }
 
 # The real path of a file or directory, with links followed.
@@ -79,26 +101,21 @@ function Test-PovyWithin([string]$Path, [string]$Base) {
     return ($real + [System.IO.Path]::DirectorySeparatorChar).StartsWith($root, $comparison)
 }
 
-# Rejects a template that is missing, is a link, or resolves outside the profile.
-function Assert-PovyProfileFile([string]$Relative) {
+# The path of a file of the profile, when it is a regular file inside it.
+function Get-PovyProfileFile([string]$Relative) {
     $path = Join-Path $script:PovyProfileRoot $Relative
     $item = Get-Item -LiteralPath $path -Force -ErrorAction Ignore
-    if (-not $item -or $item.LinkType -or $item -isnot [System.IO.FileInfo]) { Stop-Povy "profile template not found: $Relative" }
-    if (-not (Test-PovyWithin $path $script:PovyProfileRoot)) { Stop-Povy "profile template is outside the profile: $Relative" }
-}
-
-function Assert-PovyProfileDir([string]$Relative) {
-    $path = Join-Path $script:PovyProfileRoot $Relative
-    if (-not (Test-Path -LiteralPath $path -PathType Container)) { Stop-Povy "profile directory not found: $Relative" }
-    if (-not (Test-PovyWithin $path $script:PovyProfileRoot)) { Stop-Povy "profile directory is outside the profile: $Relative" }
-}
-
-# Fills $script:Prof from the clone, or from its subdirectory given as the second
-# argument. Stays empty when no profile is configured.
-function Import-PovyProfile([string]$Url, [string]$Subdir) {
-    $script:Prof = [ordered]@{
-        Secrets = @(); Tools = [ordered]@{}; Prompt = ''; Packages = @(); Bin = ''; Shell = @(); Files = @()
+    if (-not $item) { return '' }
+    if ($item.LinkType -or $item -isnot [System.IO.FileInfo] -or -not (Test-PovyWithin $path $script:PovyProfileRoot)) {
+        Stop-Povy "the profile's $Relative must be a regular file inside the profile"
     }
+    return $item.FullName
+}
+
+# Sets $script:PovyProfileRoot and $script:Prof from the clone, or from its
+# subdirectory given as the second argument. Both stay empty without a profile.
+function Import-PovyProfile([string]$Url, [string]$Subdir) {
+    $script:Prof = New-PovyProfileState
     $script:PovyProfileRoot = $script:PovyProfileDir
     if (-not $Url) { return }
     if ($Subdir) {
@@ -110,82 +127,154 @@ function Import-PovyProfile([string]$Url, [string]$Subdir) {
             Stop-Povy "profile_path is outside the profile: $Subdir"
         }
     }
-    $file = Join-Path $script:PovyProfileRoot 'profile.toml'
-    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
-        $suffix = if ($Subdir) { ", path $Subdir" } else { '' }
-        Stop-Povy "the profile has no profile.toml: $Url$suffix"
-    }
-    $data = Read-PovyToml $file
     $prof = $script:Prof
-
-    $secrets = Get-PovyTomlTable $data 'secrets' $file '[secrets]'
-    if ($secrets.Contains('required')) {
-        if (-not (Test-PovyStringList $secrets['required'])) { Stop-Povy "${file}: secrets.required must be a list of names" }
-        foreach ($secret in $secrets['required']) {
-            if ($secret -cnotmatch $script:PovySecretRe) { Stop-Povy "${file}: invalid secret name: $secret" }
+    $prof.Team = Get-PovyProfileFile 'team.toml'
+    $prof.Project = Get-PovyProfileFile 'mise.toml'
+    if (-not $prof.Team -and -not $prof.Project) {
+        if (Test-Path -LiteralPath (Join-Path $script:PovyProfileRoot 'profile.toml')) {
+            Stop-Povy "the profile is in the povy 0.1 format, profile.toml; convert it to team.toml and mise.toml, as _samples/profile shows: $Url"
         }
-        $prof.Secrets = @($secrets['required'])
+        $suffix = if ($Subdir) { ", path $Subdir" } else { '' }
+        Stop-Povy "the profile has neither team.toml nor mise.toml: $Url$suffix"
     }
-    $prof.Tools = ConvertTo-PovyTool $data $file
-    $prof.Prompt = Get-PovyTomlPrompt $data $file
-    $prof.Packages = ConvertTo-PovyPackage $data $file
+    foreach ($file in @($prof.Team, $prof.Project) | Where-Object { $_ }) {
+        $data = Read-PovyToml $file
+        $vars = Get-PovyTomlTable $data 'vars' $file '[vars]'
+        foreach ($name in $vars.Keys) {
+            $text = ConvertTo-PovyVarText $vars[$name]
+            if ($null -ne $text) { $prof.Vars[$name] = $text }
+        }
+    }
+    if ($prof.Project) { Import-PovyProject $prof.Project }
+}
 
-    # bin: a directory of commands put on PATH, read in place from the clone.
-    $bin = (Get-PovyTomlString $data 'bin' $file).TrimEnd('/')
+# A [vars] value as a template writes it: strings, numbers and booleans, as Tera
+# prints them. Tables and lists are left out.
+function ConvertTo-PovyVarText($Value) {
+    if ($Value -is [string]) { return $Value }
+    if ($Value -is [bool]) { return $Value.ToString().ToLowerInvariant() }
+    if ($Value -is [int] -or $Value -is [long] -or $Value -is [double] -or $Value -is [decimal]) {
+        return [System.Convert]::ToString($Value, [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    return $null
+}
+
+# Reads the parts of mise.toml that povy acts on: [_.povy], the secrets that
+# templates read, and the [bootstrap.files] entries it writes on Windows.
+function Import-PovyProject([string]$File) {
+    $prof = $script:Prof
+    $data = Read-PovyToml $File
+    $free = Get-PovyTomlTable $data '_' $File '[_]'
+    $povy = Get-PovyTomlTable $free 'povy' $File '[_.povy]'
+
+    $bin = (Get-PovyTomlString $povy 'bin' $File).TrimEnd('/')
     if ($bin) {
-        if (-not (Test-PovyRelativePath $bin)) { Stop-Povy "${file}: invalid bin: $bin" }
-        Assert-PovyProfileDir $bin
-        $prof.Bin = $bin
+        if (-not (Test-PovyRelativePath $bin)) { Stop-Povy "${File}: invalid _.povy.bin: $bin" }
+        $path = Join-Path $script:PovyProfileRoot $bin
+        if (-not (Test-Path -LiteralPath $path -PathType Container) -or -not (Test-PovyWithin $path $script:PovyProfileRoot)) {
+            Stop-Povy "${File}: _.povy.bin is not a directory of the profile: $bin"
+        }
+        $prof.Bin = [System.IO.Path]::GetFullPath($path)
     }
 
-    # shell: files sourced by interactive shells. PowerShell takes the .ps1 ones.
-    if ($data.Contains('shell')) {
-        if (-not (Test-PovyStringList $data['shell'])) { Stop-Povy "${file}: shell must be a list of files" }
-        $shell = [System.Collections.Generic.List[string]]::new()
-        foreach ($source in $data['shell']) {
-            if (-not (Test-PovyRelativePath $source)) { Stop-Povy "${file}: invalid shell file: $source" }
-            Assert-PovyProfileFile $source
-            if ($source.EndsWith('.ps1', [StringComparison]::OrdinalIgnoreCase)) { $shell.Add($source) }
-        }
-        $prof.Shell = $shell.ToArray()
+    $bootstrap = Get-PovyTomlTable $data 'bootstrap' $File '[bootstrap]'
+    $secrets = Get-PovyTomlTable $bootstrap 'secrets' $File '[bootstrap.secrets]'
+    foreach ($name in $secrets.Keys) {
+        $value = $secrets[$name]
+        $envName = if ($value -is [string]) { $value } elseif ($value -is [System.Collections.IDictionary]) { [string]$value['env'] } else { '' }
+        if ($envName -cnotmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Povy "${File}: bootstrap.secrets.$name needs an environment variable" }
+        $prof.Secrets[$name] = $envName
     }
 
-    if ($data.Contains('files')) {
-        if ($data['files'] -isnot [System.Collections.IList] -or $data['files'] -is [string]) {
-            Stop-Povy "${file}: files must be written as [[files]] tables"
-        }
-        $files = [System.Collections.Generic.List[object]]::new()
-        foreach ($entry in $data['files']) {
-            if ($entry -isnot [System.Collections.IDictionary]) { Stop-Povy "${file}: malformed [[files]] entry" }
-            $source = Get-PovyTomlString $entry 'source' $file
-            $target = Get-PovyTomlString $entry 'target' $file
-            if (-not (Test-PovyRelativePath $source)) { Stop-Povy "${file}: invalid source: $source" }
-            if (-not (Test-PovyRelativePath $target)) { Stop-Povy "${file}: target must stay in the home directory: $target" }
-            Assert-PovyProfileFile $source
-            $files.Add([pscustomobject]@{ Source = $source; Target = $target })
-        }
-        $prof.Files = $files.ToArray()
+    $windows = Get-PovyTomlTable $povy 'windows' $File '[_.povy.windows]'
+    $files = Get-PovyTomlTable $bootstrap 'files' $File '[bootstrap.files]'
+    if ($windows.Contains('files')) {
+        if (-not (Test-PovyStringList $windows['files'])) { Stop-Povy "${File}: _.povy.windows.files must be a list of targets" }
+        $prof.WindowsFiles = @(foreach ($target in $windows['files']) { ConvertTo-PovyWindowsFile $files $target $File })
+    }
+    if ($windows.Contains('shell')) {
+        if (-not (Test-PovyStringList $windows['shell'])) { Stop-Povy "${File}: _.povy.windows.shell must be a list of files" }
+        $prof.WindowsShell = @(foreach ($source in $windows['shell']) {
+                if (-not (Test-PovyRelativePath $source) -or -not $source.EndsWith('.ps1', [StringComparison]::OrdinalIgnoreCase)) {
+                    Stop-Povy "${File}: _.povy.windows.shell takes .ps1 files of the profile: $source"
+                }
+                $path = Get-PovyProfileFile $source
+                if (-not $path) { Stop-Povy "${File}: profile file not found: $source" }
+                $path
+            })
     }
 }
 
-# Replaces {{name}}, {{email}}, {{home}} and {{SECRET}}. Text that does not look like
-# a placeholder is copied as is, so other template syntaxes pass through.
-# Placeholders are case-sensitive, as in the bash engine.
-function ConvertFrom-PovyTemplate([string]$Path) {
-    $values = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
-    $values['name'] = $script:Cfg.Name
-    $values['email'] = $script:Cfg.Email
-    $values['home'] = $script:PovyHome
-    foreach ($secret in $script:Prof.Secrets) {
-        $value = Get-PovyEnvValue $secret
-        $values[$secret] = if ($null -eq $value) { '' } else { $value }
+# A [bootstrap.files] entry as povy writes it on Windows: a whole file in the home
+# directory, from content or from a source of the profile, a template or not.
+function ConvertTo-PovyWindowsFile($Files, [string]$Target, [string]$File) {
+    if (-not $Files.Contains($Target) -or $Files[$Target] -isnot [System.Collections.IDictionary]) {
+        Stop-Povy "${File}: _.povy.windows.files names $Target, which [bootstrap.files] does not declare"
     }
-    $pattern = '\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}'
-    $text = [System.IO.File]::ReadAllText($Path)
-    foreach ($match in [System.Text.RegularExpressions.Regex]::Matches($text, $pattern)) {
-        if (-not $values.ContainsKey($match.Groups[1].Value)) {
-            Stop-Povy "unknown placeholder {{$($match.Groups[1].Value)}} in $Path"
+    $entry = $Files[$Target]
+    $relative = if ($Target.StartsWith('~/')) { $Target.Substring(2) } else { '' }
+    if (-not (Test-PovyRelativePath $relative)) { Stop-Povy "${File}: povy writes Windows files under ~/ only: $Target" }
+    foreach ($key in $entry.Keys) {
+        if ($key -notin @('content', 'source', 'template', 'mode', 'os')) {
+            Stop-Povy "${File}: povy writes whole files on Windows, without $key`: $Target"
         }
     }
-    return $text -creplace $pattern, { $values[$_.Groups[1].Value] }
+    $content = Get-PovyTomlString $entry 'content' $File
+    $source = Get-PovyTomlString $entry 'source' $File
+    if ([bool]$content -eq [bool]$source) { Stop-Povy "${File}: $Target needs either content or source" }
+    if ($source) {
+        $relativeSource = $source -replace '^\./', ''
+        if (-not (Test-PovyRelativePath $relativeSource)) { Stop-Povy "${File}: invalid source for ${Target}: $source" }
+        $path = Get-PovyProfileFile $relativeSource
+        if (-not $path) { Stop-Povy "${File}: source not found for ${Target}: $source" }
+        $bytes = [System.IO.File]::ReadAllBytes($path)
+        $bom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+        $content = [System.Text.UTF8Encoding]::new($false).GetString($bytes, $(if ($bom) { 3 } else { 0 }), $bytes.Length - $(if ($bom) { 3 } else { 0 }))
+    } else {
+        $bom = $false
+    }
+    $mode = Get-PovyTomlString $entry 'mode' $File
+    return [pscustomobject]@{
+        Target = $Target
+        Path = Join-Path $script:PovyHome $relative
+        Content = $content
+        Template = (Get-PovyTomlBool $entry 'template' $false $File)
+        # A source keeps its byte order mark, as mise copies it.
+        Bom = $bom
+        # Group and others get nothing: the file is for its owner alone.
+        Private = [bool]($mode -match '^0?[0-7]00$')
+    }
+}
+
+# Renders the templates that mise would render elsewhere, with only what they need
+# here: {{ secret(name="...") }} and {{ vars.name }}. Anything else that Tera would
+# read stops, rather than being written as it is.
+function ConvertFrom-PovyTemplate([string]$Text, [string]$Label) {
+    if ($Text -match '\{%|\{#') { Stop-Povy "${Label}: povy on Windows renders only secret() and vars in templates" }
+    foreach ($match in [System.Text.RegularExpressions.Regex]::Matches($Text, $script:PovyTemplatePattern)) {
+        $null = Get-PovyTemplateValue $match.Groups[1].Value $Label
+    }
+    if (($Text -creplace $script:PovyTemplatePattern, '').Contains('{{')) {
+        Stop-Povy "${Label}: a {{ has no closing }}"
+    }
+    return $Text -creplace $script:PovyTemplatePattern, { Get-PovyTemplateValue $_.Groups[1].Value $Label }
+}
+
+function Get-PovyTemplateValue([string]$Expression, [string]$Label) {
+    $expression = $Expression.Trim()
+    if ($expression -cmatch '^secret\(\s*name\s*=\s*(["''])([A-Za-z0-9._-]+)\1\s*\)$') {
+        $name = $Matches[2]
+        if (-not $script:Prof.Secrets.ContainsKey($name)) { Stop-Povy "${Label}: the secret $name is not declared in [bootstrap.secrets]" }
+        $envName = $script:Prof.Secrets[$name]
+        $value = Get-PovyEnvValue $envName
+        if (-not $value) { $value = [Environment]::GetEnvironmentVariable($envName) }
+        if (-not $value) { Stop-Povy "${Label}: the secret $name is empty; fill $envName in $script:PovyEnvFile" }
+        return $value
+    }
+    if ($expression -cmatch '^vars\.([A-Za-z_][A-Za-z0-9_]*)$') {
+        $name = $Matches[1]
+        if (-not $script:Prof.Vars.ContainsKey($name)) { Stop-Povy "${Label}: vars.$name is not declared in [vars]" }
+        return $script:Prof.Vars[$name]
+    }
+    Stop-Povy "${Label}: povy on Windows renders only secret() and vars in templates, not {{ $expression }}"
 }

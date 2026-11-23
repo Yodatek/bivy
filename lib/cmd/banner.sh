@@ -364,8 +364,8 @@ banner_full_tools() {
 
 banner_full_end() {
   if [ "$BANNER_PROBLEMS" -eq 0 ]; then
-    printf '  %s╰─%s %s%s all good%s  %spovy tools %s povy doctor%s\n' "$B_TREE" "$B_OFF" \
-      "$B_BOLD$B_OK" "$B_MARK_OK" "$B_OFF" "$B_TREE" "$B_SEP" "$B_OFF"
+    printf '  %s╰─%s %s%s tools ready%s  %spovy doctor checks the rest%s\n' "$B_TREE" "$B_OFF" \
+      "$B_BOLD$B_OK" "$B_MARK_OK" "$B_OFF" "$B_TREE" "$B_OFF"
   else
     printf '  %s╰─%s %spovy doctor tells more%s\n' "$B_TREE" "$B_OFF" "$B_DIM" "$B_OFF"
   fi
@@ -373,56 +373,13 @@ banner_full_end() {
 
 # --- Checks ------------------------------------------------------------------
 
+# Only what costs nothing more: the gauges and the tool list already ran. The
+# thorough checks, such as what an IDE sees, are povy doctor's.
 banner_checks() {
-  local secrets missing target path mode state overriding shadowed
   [ "$B_NO_MISE" -eq 0 ] || banner_fail "mise is not installed; run the povy bootstrap"
   [ -z "$B_MISSING" ] || banner_fail "not installed:$B_MISSING; run: povy apply"
   [ "$B_DISK_FULL" -eq 0 ] || banner_warn "the disk holding $(tilde_path "$HOME") is almost full"
-  if [ ! -f "$POVY_APPLIED" ]; then
-    banner_warn "povy apply has not run yet"
-    return 0
-  fi
-  case ":$PATH:" in
-    *":$POVY_SHIMS_DIR:"*) ;;
-    *) banner_fail "the mise shims are not on the PATH of this shell; open a new terminal" ;;
-  esac
-  if mise_find >/dev/null; then
-    shadowed=$(shims_shadowed "$PATH" "$(mise_active_commands)")
-  else
-    shadowed=""
-  fi
-  [ -z "$shadowed" ] || banner_warn "$(shims_shadowed_summary "$shadowed") before the mise shims"
-  [ ! "$POVY_CONFIG_FILE" -nt "$POVY_APPLIED" ] ||
-    banner_warn "config.toml changed since the last povy apply"
-  [ ! "$POVY_ENV_FILE" -nt "$POVY_APPLIED" ] ||
-    banner_warn ".env changed since the last povy apply"
-
-  secrets=$(banner_applied secret)
-  missing=$(env_missing "$secrets")
-  [ -z "$missing" ] || banner_fail "empty secrets in $(tilde_path "$POVY_ENV_FILE"): $(printf '%s' "$missing" | tr '\n' ' ')"
-  if [ -f "$POVY_ENV_FILE" ]; then
-    mode=$(os_file_mode "$POVY_ENV_FILE") || mode=""
-    [ "$mode" = 600 ] || banner_fail "$(tilde_path "$POVY_ENV_FILE") has mode $mode, expected 600"
-  fi
-  while IFS= read -r target; do
-    [ -n "$target" ] || continue
-    path="$HOME/$target"
-    if [ ! -f "$path" ]; then
-      banner_fail "$(tilde_path "$path") is missing; run: povy apply"
-      continue
-    fi
-    mode=$(os_file_mode "$path") || mode=""
-    [ "$mode" = 600 ] || banner_fail "$(tilde_path "$path") has mode $mode, expected 600"
-  done <<<"$(banner_applied file)"
-
-  os_gui_session_state && state=0 || state=$?
-  [ "$state" -ne 1 ] || banner_warn "graphical apps do not see the shims; log out and back in, or run: povy apply"
-
-  if command -v git >/dev/null 2>&1; then
-    overriding=$(git_overriding_files 2>/dev/null) || overriding=""
-    [ -z "$overriding" ] ||
-      banner_warn "user.name or user.email set after the povy include overrides it in: $(printf '%s' "$overriding" | tr '\n' ' ')"
-  fi
+  [ -f "$POVY_APPLIED" ] || banner_warn "povy apply has not run yet"
 }
 
 cmd_banner() {
@@ -454,7 +411,7 @@ cmd_banner() {
   banner_compact
   banner_checks
   if [ "$BANNER_PROBLEMS" -eq 0 ]; then
-    printf '   %s%s all good%s\n' "$B_OK" "$B_MARK_OK" "$B_OFF"
+    printf '   %s%s tools ready%s\n' "$B_OK" "$B_MARK_OK" "$B_OFF"
   else
     printf '   %spovy doctor tells more%s\n' "$B_DIM" "$B_OFF"
   fi

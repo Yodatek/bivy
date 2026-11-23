@@ -129,7 +129,7 @@ outside_block() {
   add_identity "~/a/" "a@example.org"
   apply_git
   [ ! -e "$HOME/.config/povy/git/identity-2" ]
-  ! grep -qF 'gitdir:~/b/' "$HOME/.config/povy/git/config"
+  ! grep -qF 'gitdir:~/b/' "$HOME/.config/povy/git/config" || false
 }
 
 @test "a [user] after the block is reported with its file, an included one too" {
@@ -138,9 +138,9 @@ outside_block() {
   printf '[user]\n\tname = Old Name\n' >"$HOME/extra.conf"
   run apply_git
   [ "$status" -eq 0 ]
-  [[ "$output" == *"override it"* ]]
-  [[ "$output" == *"$HOME/.gitconfig"* ]]
-  [[ "$output" == *"$HOME/extra.conf"* ]]
+  [[ "$output" == *"override it"* ]] || false
+  [[ "$output" == *"$HOME/.gitconfig"* ]] || false
+  [[ "$output" == *"$HOME/extra.conf"* ]] || false
   # This is why it matters: the [user] wins even in an identity directory.
   new_repo "$HOME/perso/repo"
   [ "$(git -C "$HOME/perso/repo" config user.email)" = old@example.org ]
@@ -150,7 +150,7 @@ outside_block() {
   printf '[core]\n\teditor = vi\n' >"$HOME/.gitconfig"
   run apply_git
   [ "$status" -eq 0 ]
-  [[ "$output" != *"override"* ]]
+  [[ "$output" != *"override"* ]] || false
 }
 
 @test "the XDG file is used when ~/.gitconfig does not exist" {
@@ -189,7 +189,7 @@ outside_block() {
       echo "accepted: $body"
       return 1
     }
-    [[ "$output" == *identities* ]]
+    [[ "$output" == *identities* ]] || false
     [ ! -e "$HOME/.config/povy/config.toml" ]
   done
 }

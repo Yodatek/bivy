@@ -1,0 +1,18 @@
+# Included by mise in every directory, through povy: the tools of the team and what
+# goes with them. Anything mise accepts in an included file can go here: [tools],
+# [env], [shell_alias], [vars], min_version.
+min_version = "2026.11.0"
+
+# Tools that mise installs, the same way on every system. A name comes from the
+# mise registry; another tool names its backend: npm, pipx, cargo, aqua, github...
+# A list installs every version, the first one is the default.
+[tools]
+jq = "1.7.1"
+node = ["22", "20"]
+"npm:prettier" = "3" # a backend tool; npm comes with node above
+starship = "1.27.0"
+
+# Aliases in the zsh and bash where mise is activated; mise.toml activates it in
+# interactive shells.
+[shell_alias]
+ll = "ls -lh"

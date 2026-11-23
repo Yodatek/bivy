@@ -30,7 +30,7 @@ detect_with() {
   . "$POVY_ROOT/lib/os/wsl.sh"
   HOME=/mnt/c/Users/me run os_preflight
   [ "$status" -ne 0 ]
-  [[ "$output" == *"Windows drive"* ]]
+  [[ "$output" == *"Windows drive"* ]] || false
   run os_preflight
   [ "$status" -eq 0 ]
 }
@@ -40,7 +40,7 @@ detect_with() {
   . "$POVY_ROOT/lib/cmd/doctor.sh"
   command() { printf '/mnt/c/tools/mise\n'; }
   run os_doctor
-  [[ "$output" == *"Windows binary"* ]]
+  [[ "$output" == *"Windows binary"* ]] || false
 }
 
 @test "the login file default differs per system" {

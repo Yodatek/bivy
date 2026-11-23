@@ -63,6 +63,7 @@ function Initialize-PovyPath {
     $script:PovyMiseConf = Join-Path $miseConfig 'conf.d/povy.toml'
     $script:PovyShimsDir = Join-Path $miseData 'shims'
     $script:PovyLauncherDir = Join-Path $script:PovyDataDir 'bin'
+    $script:PovyLocalBin = Join-Path $script:PovyHome '.local/bin'
     $script:PovyProfileDir = Join-Path $script:PovyStateDir 'profile'
     $script:PovyProfileRoot = $script:PovyProfileDir
     $script:PovyBackupRoot = Join-Path $script:PovyStateDir 'backups'
@@ -184,9 +185,9 @@ function Install-PovyFile([string]$Source, [string]$Target, [switch]$Private) {
 }
 
 # Writes text to a new private temporary file and returns its path.
-function New-PovyStagedFile([string]$Text) {
+function New-PovyStagedFile([string]$Text, [switch]$Bom) {
     $path = Join-Path $script:PovyStateDir ('staged.' + [System.Guid]::NewGuid().ToString('N').Substring(0, 8))
-    [System.IO.File]::WriteAllText($path, $Text, $script:PovyUtf8)
+    [System.IO.File]::WriteAllText($path, $Text, [System.Text.UTF8Encoding]::new([bool]$Bom))
     Set-PovyPrivate $path
     return $path
 }
@@ -294,9 +295,25 @@ function Invoke-PovyMise {
     }
 }
 
+# mise looks yq up without povy's conf.d file, so that a team.toml that mise cannot
+# read keeps neither povy from reading its configuration nor apply from pulling the
+# team's fix. Run from the home, mise also reads that file as a project config, under
+# its real path, which differs when the home goes through a link, as /var does on macOS.
+function Invoke-PovyYqMise {
+    $previous = $env:MISE_IGNORED_CONFIG_PATHS
+    $ignored = @([System.IO.Path]::GetFullPath($script:PovyMiseConf), (Resolve-PovyRealPath $script:PovyMiseConf), $previous) |
+        Where-Object { $_ }
+    $env:MISE_IGNORED_CONFIG_PATHS = @($ignored) -join [System.IO.Path]::PathSeparator
+    try {
+        Invoke-PovyMise @args
+    } finally {
+        $env:MISE_IGNORED_CONFIG_PATHS = $previous
+    }
+}
+
 function Get-PovyYq {
     if ($script:PovyYq) { return $script:PovyYq }
-    $path = Invoke-PovyMise which yq --tool $script:PovyYqTool 2>$null
+    $path = Invoke-PovyYqMise which yq --tool $script:PovyYqTool 2>$null
     if ($LASTEXITCODE -eq 0 -and $path) {
         $script:PovyYq = ([string]$path).Trim()
         return $script:PovyYq
@@ -307,7 +324,7 @@ function Get-PovyYq {
 function Install-PovyYq {
     if (Get-PovyYq) { return }
     Write-PovyInfo "installing $script:PovyYqTool with mise"
-    Invoke-PovyMise install $script:PovyYqTool | Out-Null
+    Invoke-PovyYqMise install $script:PovyYqTool | Out-Null
     if ($LASTEXITCODE -ne 0 -or -not (Get-PovyYq)) { Stop-Povy "could not install $script:PovyYqTool with mise" }
 }
 

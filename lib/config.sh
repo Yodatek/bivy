@@ -1,21 +1,17 @@
 # shellcheck shell=bash
 # Machine configuration: config.toml and the .env secrets file. Neither is ever
 # versioned. .env is parsed, never sourced, so its content cannot run as code.
+# Tools, packages and the prompt are mise configuration now, not povy's.
 
 CFG_NAME=""
 CFG_EMAIL=""
 CFG_PROFILE=""
-CFG_PROFILE_BRANCH=""
+CFG_PROFILE_REF=""
 CFG_PROFILE_PATH=""
-CFG_TOOLS=""
 CFG_IDENTITIES=""
-CFG_PACKAGES=""
 CFG_BANNER=true
-CFG_PROMPT=""
-POVY_STARSHIP_TOOL="starship@1.27.0"
 
-POVY_TOOL_NAME_RE='^[A-Za-z0-9@][A-Za-z0-9@._:/+-]*$'
-POVY_TOOL_VERSION_RE='^[A-Za-z0-9][A-Za-z0-9._:+-]*$'
+POVY_REF_RE='^[A-Za-z0-9_][A-Za-z0-9._/-]*$'
 
 valid_name() {
   [ -n "$1" ] && ! has_control_chars "$1"
@@ -45,50 +41,14 @@ profile_url_problem() {
   return 0
 }
 
-# Prints "name<TAB>versions<TAB>level" for every tool, the last declaration of a
-# name winning: povy itself, then the profile, then the machine. yq is declared
-# because mise creates a shim for every installed tool, and a shim with no
-# configured version fails when called.
-tools_merged() {
-  {
-    printf '%s\t%s\tpovy\n' "${POVY_YQ_TOOL%@*}" "${POVY_YQ_TOOL#*@}"
-    if [ "$(prompt_choice)" = starship ]; then
-      printf '%s\t%s\tpovy\n' "${POVY_STARSHIP_TOOL%@*}" "${POVY_STARSHIP_TOOL#*@}"
-    fi
-    printf '%s\n' "$PROFILE_TOOLS" | awk -F'\t' 'NF == 2 { print $0 "\tprofile" }'
-    printf '%s\n' "$CFG_TOOLS" | awk -F'\t' 'NF == 2 { print $0 "\tmachine" }'
-  } | awk -F'\t' 'NF == 3 { if (!($1 in v)) o[++n] = $1; v[$1] = $2; l[$1] = $3 }
-      END { for (i = 1; i <= n; i++) print o[i] "\t" v[o[i]] "\t" l[o[i]] }'
-}
-
-# Prints "name<TAB>versions" lines for a [tools] table. A tool takes one version or
-# a list of them, separated by spaces in the output. As in mise, every version of a
-# list is installed and the first one is the default.
-toml_tools() {
-  local file=$1 raw name tag length versions version count
-  local -a list
-  raw=$(toml_tsv "$file" '(.tools // {}) | to_entries | .[] |
-    [.key, (.value | tag), ((.value | select(tag == "!!seq") | length) // 1),
-      ((.value | select(tag == "!!seq") | map(tostring) | join(" ")) // (.value | tostring))]') ||
+# Settings that povy 0.1 read and that belong to mise now. A config that still has
+# them stops with the way out, rather than having them ignored.
+config_reject_legacy() {
+  local file=$1 legacy
+  legacy=$(toml_query "$file" '[keys[] | select(. == "tools" or . == "packages" or . == "prompt")] | join(" ")') ||
     die "$file is not valid TOML"
-  # The version comes last because it may be empty, and read merges empty fields.
-  while IFS=$'\t' read -r name tag length versions; do
-    [ -n "$name" ] || continue
-    [[ "$name" =~ $POVY_TOOL_NAME_RE ]] || die "$file: invalid tool name: $name"
-    if [ "$tag" != '!!seq' ]; then
-      [[ "$versions" =~ $POVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
-    else
-      # read -a splits without expanding wildcards, which are checked below.
-      IFS=' ' read -r -a list <<<"$versions"
-      for version in ${list[@]+"${list[@]}"}; do
-        [[ "$version" =~ $POVY_TOOL_VERSION_RE ]] || die "$file: invalid version for $name"
-      done
-      # An element holding a space would split into several valid-looking words.
-      count=${#list[@]}
-      [ "$count" -gt 0 ] && [ "$count" -eq "$length" ] || die "$file: invalid version list for $name"
-    fi
-    printf '%s\t%s\n' "$name" "$versions"
-  done <<<"$raw"
+  [ -z "$legacy" ] ||
+    die "$file: $legacy: since povy 0.2, tools, packages and the prompt are mise configuration; move them to ~/.config/mise/config.toml or to the profile's team.toml and mise.toml"
 }
 
 # A directory for includeIf "gitdir:", absolute or under ~/. A trailing slash makes
@@ -144,35 +104,26 @@ toml_bool() {
   esac
 }
 
-# Prints the prompt key of a file: starship, none, or nothing when it is absent.
-toml_prompt() {
-  local file=$1 value
-  value=$(toml_string "$file" prompt) || exit 1
-  case "$value" in
-    '' | starship | none) printf '%s' "$value" ;;
-    *) die "$file: prompt must be starship or none" ;;
-  esac
-}
-
-# The prompt to set: the machine's choice, else the profile's, else none.
-prompt_choice() {
-  local choice=${CFG_PROMPT:-${PROFILE_PROMPT:-}}
-  printf '%s' "${choice:-none}"
-}
-
 config_read() {
-  local file=$1 problem
+  local file=$1 problem branch ref_key=profile_ref
+  config_reject_legacy "$file"
   CFG_NAME=$(toml_string "$file" name) || exit 1
   CFG_EMAIL=$(toml_string "$file" email) || exit 1
   CFG_PROFILE=$(toml_string "$file" profile) || exit 1
-  CFG_PROFILE_BRANCH=$(toml_string "$file" profile_branch) || exit 1
-  CFG_TOOLS=$(toml_tools "$file") || exit 1
+  CFG_PROFILE_REF=$(toml_string "$file" profile_ref) || exit 1
+  branch=$(toml_string "$file" profile_branch) || exit 1
   valid_name "$CFG_NAME" || die "$file: name is required"
   valid_email "$CFG_EMAIL" || die "$file: email is not a valid address"
-  if [ -n "$CFG_PROFILE_BRANCH" ]; then
-    [ -n "$CFG_PROFILE" ] || die "$file: profile_branch needs a profile"
-    [[ "$CFG_PROFILE_BRANCH" =~ ^[A-Za-z0-9_][A-Za-z0-9._/-]*$ ]] && [[ "$CFG_PROFILE_BRANCH" != *..* ]] ||
-      die "$file: invalid profile_branch: $CFG_PROFILE_BRANCH"
+  # profile_branch is the name povy 0.1 used; profile_ref also takes a tag or a commit.
+  if [ -n "$branch" ]; then
+    [ -z "$CFG_PROFILE_REF" ] || die "$file: set profile_ref only, profile_branch is its old name"
+    CFG_PROFILE_REF=$branch
+    ref_key=profile_branch
+  fi
+  if [ -n "$CFG_PROFILE_REF" ]; then
+    [ -n "$CFG_PROFILE" ] || die "$file: $ref_key needs a profile"
+    [[ "$CFG_PROFILE_REF" =~ $POVY_REF_RE ]] && [[ "$CFG_PROFILE_REF" != *..* ]] ||
+      die "$file: invalid $ref_key: $CFG_PROFILE_REF"
   fi
   CFG_PROFILE_PATH=$(toml_string "$file" profile_path) || exit 1
   CFG_PROFILE_PATH=${CFG_PROFILE_PATH%/}
@@ -184,8 +135,6 @@ config_read() {
   [ -z "$problem" ] || die "$file: $problem"
   CFG_IDENTITIES=$(toml_identities "$file") || exit 1
   CFG_BANNER=$(toml_bool "$file" banner true) || exit 1
-  CFG_PROMPT=$(toml_prompt "$file") || exit 1
-  CFG_PACKAGES=$(toml_packages "$file") || exit 1
 }
 
 config_load() {
@@ -196,7 +145,7 @@ config_load() {
 POVY_CONFIG_HEADER='# Machine configuration for povy. Never versioned.'
 
 # Rewrites the three answers of povy init. The rest of an existing file, such as
-# [tools] or [[identities]], is kept as it is.
+# profile_ref or [[identities]], is kept as it is.
 config_write() {
   local name=$1 email=$2 profile=$3 tmp
   tmp=$(mktemp "$POVY_STATE_DIR/config.XXXXXX") || die "cannot write in $POVY_STATE_DIR"

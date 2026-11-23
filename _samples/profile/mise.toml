@@ -1,0 +1,69 @@
+# What mise bootstrap applies to set up a machine, once povy points it here. See
+# https://mise.jdx.dev/bootstrap.html for every section.
+
+# Only what mise cannot install, such as tree here, which mise has no backend for.
+[bootstrap.packages]
+"brew:tree" = { os = "macos" }
+"apt:tree" = { os = "linux" }
+"dnf:tree" = { os = "linux" }
+# "winget:Microsoft.PowerToys" = { os = "windows" } # Windows has tree already
+
+# Secrets the templates read. povy init adds a line for each one to
+# ~/.config/povy/.env, which you fill in.
+[bootstrap.secrets]
+sample_api_token = { env = "SAMPLE_API_TOKEN", description = "Any value; it only ends up in sample.conf" }
+
+# Files, written in place. mise writes into a directory only when it exists or is
+# declared here. mise writes no file on Windows, so these are for the other systems;
+# povy writes those that [_.povy.windows] lists.
+[bootstrap.directories."~/.config"]
+os = "unix"
+
+[bootstrap.directories."~/.config/povy-sample"]
+os = "unix"
+
+[bootstrap.files."~/.config/povy-sample/sample.conf"]
+os = "unix"
+source = "./files/sample.conf"
+template = true
+mode = "0600"
+
+[bootstrap.files."~/.config/starship.toml"]
+os = "unix"
+source = "./files/starship.toml"
+
+# mise activation in interactive shells, for [shell_alias]. povy already puts the
+# shims on every PATH, login and IDE shells included.
+[bootstrap.mise_shell_activate]
+zshrc = true
+bashrc = true
+
+# The shell functions of the profile, and the prompt, at the end of each rc file.
+[bootstrap.files."~/.zshrc"]
+os = "unix"
+id = "sample"
+template = true
+block = '''
+. "{{ config_root }}/shell/functions.sh"
+eval "$(starship init zsh)"
+'''
+
+[bootstrap.files."~/.bashrc"]
+os = "unix"
+id = "sample"
+template = true
+block = '''
+. "{{ config_root }}/shell/functions.sh"
+eval "$(starship init bash)"
+'''
+
+# What povy does itself. bin is a directory of commands that povy puts on the PATH
+# of every shell and of graphical apps, read in place from the profile.
+[_.povy]
+bin = "bin"
+
+# On Windows, where mise writes no file: the [bootstrap.files] that povy writes, and
+# the PowerShell files that interactive sessions source.
+[_.povy.windows]
+files = ["~/.config/povy-sample/sample.conf", "~/.config/starship.toml"]
+shell = ["shell/aliases.ps1"]

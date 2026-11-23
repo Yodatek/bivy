@@ -23,9 +23,12 @@ in the advisory unless you prefer otherwise.
 povy handles secrets and writes in the home directory, so these are in scope:
 
 - `.env`, generated files or backups readable by other users;
-- a value from `config.toml`, `.env` or a profile that runs as code where it should not;
-- a profile file written outside the home directory, or read from outside the profile;
+- a value from `config.toml` or `.env` that runs as code where it should not;
+- a file that povy writes on Windows outside the home directory, or reads from outside
+  the profile;
 - a secret that ends up in logs, command lines or a Git repository.
 
-A profile is trusted by design: it installs tools and adds commands and shell code, as
-the README says. That a malicious profile can run code is not a vulnerability.
+A profile is trusted by design: `mise bootstrap` applies it with your rights, so it
+installs tools and packages, writes files and adds commands and shell code, as the
+README says. That a malicious profile can run code is not a vulnerability. Issues in
+`mise bootstrap` itself belong to [mise](https://github.com/jdx/mise/security).

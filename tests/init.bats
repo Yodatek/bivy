@@ -39,7 +39,7 @@ SCRIPT
   run povy init --config "$CONFIG"
   [ "$status" -eq 0 ]
   [ ! -e "$BATS_TEST_TMPDIR/editor.log" ]
-  [[ "$output" == *EXAMPLE_API_TOKEN* ]]
+  [[ "$output" == *EXAMPLE_API_TOKEN* ]] || false
   grep -qxF 'EXAMPLE_API_TOKEN=' "$HOME/.config/povy/.env"
 }
 
@@ -60,13 +60,41 @@ SCRIPT
     $'name = "A"\nemail = "a@b.c"\nprofile = "https://me:hunter2@example.org/p.git"' \
     $'name = "A"\nemail = "a@b.c"\nprofile = "--upload-pack=x"' \
     $'name = "A"\nemail = "a@b.c"\nprofile = "ext::sh -c x"' \
-    $'name = "A"\nemail = "a@b.c"\n[tools]\n"x\\"y" = "1"' \
-    $'name = "A"\nemail = "a@b.c"\n[tools]\njq = "1\\n[hooks]"'; do
+    $'name = "A\\n[core]"\nemail = "a@b.c"' \
+    $'name = "A"\nemail = "a@b.c\\n[user]"' \
+    $'name = "A"\nemail = "a@b.c"\nprofile = "/p\\n[core]"'; do
     printf '%s\n' "$body" >"$CONFIG"
     run povy init --config "$CONFIG"
     [ "$status" -ne 0 ]
     [ ! -e "$HOME/.config/povy/config.toml" ]
   done
+}
+
+@test "povy 0.1 settings in config.toml are refused, by init and by apply, with where they go" {
+  local body key
+  for body in $'[tools]\njq = "1.7.1"' $'[packages]\nbrew = ["podman"]' 'prompt = "starship"'; do
+    key=${body%%[] =]*}
+    key=${key#[}
+    write_config "$CONFIG"
+    printf '%s\n' "$body" >>"$CONFIG"
+    run povy init --config "$CONFIG"
+    [ "$status" -ne 0 ] || {
+      echo "accepted: $body"
+      return 1
+    }
+    [[ "$output" == *"$CONFIG: $key: since povy 0.2, tools, packages and the prompt are mise configuration; move them to ~/.config/mise/config.toml or to the profile's team.toml and mise.toml"* ]] || false
+    [ ! -e "$HOME/.config/povy/config.toml" ]
+  done
+
+  # A machine that povy 0.1 configured.
+  mkdir -p "$HOME/.config/povy"
+  write_config "$HOME/.config/povy/config.toml"
+  printf 'prompt = "starship"\n[tools]\njq = "1.7.1"\n' >>"$HOME/.config/povy/config.toml"
+  run povy apply
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"config.toml: prompt tools: since povy 0.2"* ]] || false
+  [ ! -e "$HOME/.zshenv" ]
+  [ ! -e "$HOME/.config/mise/conf.d/povy.toml" ]
 }
 
 @test "--config without a file is an error" {
@@ -94,7 +122,7 @@ SCRIPT
 @test "without a terminal, init explains how to run without questions" {
   run povy init
   [ "$status" -ne 0 ]
-  [[ "$output" == *"--config"* ]]
+  [[ "$output" == *"--config"* ]] || false
 }
 
 @test "a truncated answer stream fails instead of looping" {
@@ -110,7 +138,7 @@ SCRIPT
   run povy init
   [ "$status" -eq 0 ]
   [ "$(cat "$BATS_TEST_TMPDIR/editor.log")" = "$HOME/.config/povy/.env" ]
-  [[ "$output" != *"fill these secrets"* ]]
+  [[ "$output" != *"fill these secrets"* ]] || false
   [ "$(file_mode "$HOME/.config/povy/.env")" = 600 ]
 }
 
@@ -173,14 +201,14 @@ SCRIPT
 @test "answering the questions again keeps the rest of config.toml" {
   local file=$HOME/.config/povy/config.toml
   write_config "$CONFIG"
-  printf '\n[tools]\njq = "1.7.1"\n\n[[identities]]\ndir = "~/oss/"\nemail = "oss@example.org"\n' >>"$CONFIG"
+  printf 'banner = false\n\n[[identities]]\ndir = "~/oss/"\nemail = "oss@example.org"\n' >>"$CONFIG"
   povy init --config "$CONFIG"
   answers "New Name" "" none
   run povy init
   [ "$status" -eq 0 ]
   grep -qxF 'name = "New Name"' "$file"
   grep -qxF 'email = "test@example.org"' "$file"
-  grep -qxF 'jq = "1.7.1"' "$file"
+  grep -qxF 'banner = false' "$file"
   grep -qxF 'dir = "~/oss/"' "$file"
   [ "$(grep -c '^name = ' "$file")" -eq 1 ]
 

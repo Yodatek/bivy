@@ -24,6 +24,15 @@ sources() {
   [ -z "$hits" ]
 }
 
+@test "test assertions with [[ ]] or ! end with || false, or bash 3.2 lets them pass" {
+  local hits
+  hits=$(cd "$POVY_ROOT" && grep -nE '^[[:space:]]*(\[\[ |! )' tests/*.bats | grep -v '||' || true)
+  [ -z "$hits" ] || {
+    echo "$hits"
+    return 1
+  }
+}
+
 @test "the OS adapters define the same functions" {
   local os
   for os in darwin linux; do
