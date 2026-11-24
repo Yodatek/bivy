@@ -6,6 +6,10 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-24
+
+The prompt can now show the context of the current directory: interactive shells keep its id in `POVY_CONTEXT`, and the Contexts section of the README shows how with Starship.
+
 ### Added
 
 - `POVY_CONTEXT` in interactive zsh, bash and PowerShell: the id of the deepest context of the current directory, unset outside them, for the prompt to show.
@@ -71,7 +75,8 @@ First release.
 - A sample profile in `_samples/profile`.
 - `povy --version`.
 
-[Unreleased]: https://github.com/Yodatek/povy/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Yodatek/povy/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Yodatek/povy/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Yodatek/povy/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Yodatek/povy/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Yodatek/povy/releases/tag/v0.1.0
