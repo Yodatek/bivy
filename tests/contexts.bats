@@ -26,6 +26,11 @@ context() {
   done
 }
 
+# An [[identities]] entry, as povy 0.2 wrote them: dir, then email.
+identity() {
+  printf '\n[[identities]]\ndir = "%s"\nemail = "%s"\n' "$1" "$2"
+}
+
 # What an IDE or an agent started in a directory sees: no mise on PATH, nothing but
 # the startup files of a login shell.
 ide_run() {
@@ -218,6 +223,27 @@ CTX = "a"' ""
   grep -qxF '# mine now' "$HOME/work/a/.config/mise/conf.d/povy.toml"
 }
 
+@test "a default profile moved to a context leaves no clone behind" {
+  make_mise_profile "$BATS_TEST_TMPDIR/p" '[env]
+CTX = "p"' ""
+  write_config "$CONFIG" "$BATS_TEST_TMPDIR/p"
+  povy init --config "$CONFIG"
+  apply_ok
+  [ -d "$STATE/profile" ]
+  [ "$(ide_env "$HOME" CTX)" = p ]
+
+  write_contexts "$(context p '~/work/p/' profile="$BATS_TEST_TMPDIR/p")"
+  povy init --config "$CONFIG"
+  apply_ok
+  [[ "$output" == *"removed ~/.local/state/povy/profile, the clone of the former default profile"* ]] || false
+  [ ! -e "$STATE/profile" ]
+  [ "$(ide_env "$HOME/work/p" CTX)" = p ]
+  [ "$(ide_env "$HOME" CTX)" = none ]
+
+  apply_ok
+  [[ "$output" != *"removed"* ]] || false
+}
+
 @test "a second apply with contexts changes nothing" {
   local before
   make_mise_profile "$BATS_TEST_TMPDIR/a" '[env]
@@ -249,20 +275,32 @@ CTX = "a"' ""
   [[ "$output" == *"[FAIL] context a: the mise shims do not run in ~/work/a"* ]] || false
 }
 
-@test "status lists the contexts of a directory, the deepest first, then the default" {
+@test "status lists the contexts and identities of a directory, the deepest first, then the default" {
   make_mise_profile "$BATS_TEST_TMPDIR/product" '[env]
 CTX = "product"' ""
   write_contexts "$(context org '~/work/org/' email=org@example.org)" \
-    "$(context product '~/work/org/product/' profile="$BATS_TEST_TMPDIR/product" profile_ref=main)"
+    "$(context product '~/work/org/product/' profile="$BATS_TEST_TMPDIR/product" profile_ref=main \
+      email=product@example.org)" \
+    "$(identity '~/work/' work@example.org)" "$(identity '~/work/org/product/' shadowed@example.org)"
   povy init --config "$CONFIG"
   mkdir -p "$HOME/work/org/product/app"
   run povy status "$HOME/work/org/product/app"
   echo "$output"
   [ "$status" -eq 0 ]
   [ "${lines[0]}" = "~/work/org/product/app, the first that sets something wins:" ]
-  [[ "${lines[1]}" == *"product"*"~/work/org/product/: profile product at main" ]] || false
-  [[ "${lines[2]}" == *"org"*"~/work/org/: Git identity org@example.org" ]] || false
-  [[ "${lines[3]}" == *"(default)"*"every directory: Git identity test@example.org" ]] || false
+  [[ "${lines[1]}" == *"product"*"~/work/org/product/: profile product at main, Git identity product@example.org" ]] || false
+  [[ "${lines[2]}" == *"(identity)"*"~/work/org/product/: Git identity shadowed@example.org" ]] || false
+  [[ "${lines[3]}" == *"org"*"~/work/org/: Git identity org@example.org" ]] || false
+  [[ "${lines[4]}" == *"(identity)"*"~/work/: Git identity work@example.org" ]] || false
+  [[ "${lines[5]}" == *"(default)"*"every directory: Git identity test@example.org" ]] || false
+
+  # Git agrees: of a context and an identity of the same directory, the context wins.
+  apply_ok
+  git -C "$HOME/work/org/product/app" init --quiet
+  [ "$(git -C "$HOME/work/org/product/app" config user.email)" = product@example.org ]
+  mkdir -p "$HOME/work/other"
+  git -C "$HOME/work/other" init --quiet
+  [ "$(git -C "$HOME/work/other" config user.email)" = work@example.org ]
 
   run povy status "$HOME"
   [ "${#lines[@]}" -eq 2 ]

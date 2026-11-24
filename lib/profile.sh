@@ -18,10 +18,19 @@ PROFILE_BIN=""
 # Clones the profile, then checks out the ref given: a branch, a tag or a commit.
 # The clone keeps the ref it was asked for, so that another ref, or none, gives a
 # new clone.
+#
+# A profile at a URL, or at an address such as git@host:path, comes without the
+# content of its history, which povy never reads: git fetches the files of a commit
+# when it checks it out, and a heavy history costs nothing. A local path stays a full
+# clone, as git ignores the filter there and copies the objects with hard links.
 profile_clone() {
-  local url=$1 ref=${2:-} tmp
+  local url=$1 ref=${2:-} tmp filter=""
+  # A colon before the first slash is how git tells a URL or an address from a path.
+  case "${url%%/*}" in
+    *:*) filter=--filter=blob:none ;;
+  esac
   tmp=$(mktemp -d "$POVY_STATE_DIR/profile-clone.XXXXXX") || die "cannot write in $POVY_STATE_DIR"
-  if ! git clone --quiet -- "$url" "$tmp/profile" </dev/null ||
+  if ! git clone --quiet ${filter:+"$filter"} -- "$url" "$tmp/profile" </dev/null ||
     { [ -n "$ref" ] && ! git -C "$tmp/profile" checkout --quiet "$ref" -- </dev/null; } ||
     ! git -C "$tmp/profile" config povy.ref "$ref"; then
     rm -rf "$tmp"

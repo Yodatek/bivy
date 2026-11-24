@@ -63,7 +63,7 @@ PowerShell engine reads the same `config.toml` and profiles, and offers `povy in
 | `povy apply` | Updates the profile, lets `mise bootstrap` apply it, puts the tools on the `PATH` of shells and graphical apps, and sets the Git identity. Running it again changes nothing. |
 | `povy doctor` | Checks the real state and changes nothing, including what a shell started by an IDE sees. Exits 0 if all is well, 1 otherwise. |
 | `povy banner` | Shows the tools and the CPU, memory and disk load. |
-| `povy status [<dir>]` | Shows the contexts that apply in a directory, the current one by default, the deepest first. |
+| `povy status [<dir>]` | Shows the contexts and `[[identities]]` entries that apply in a directory, the current one by default, the deepest first. |
 | `povy version` | Shows the release povy is on, such as `0.2.0`, or `0.2.0-3-gabc1234` three commits after it. |
 
 ## Three levels
@@ -93,7 +93,8 @@ work: each one is a context with only an email.
 
 A branch follows its remote at each `apply`, a tag is looked up again, and a commit
 stays where it is: pin a tag or a commit to choose when a machine takes the team's
-changes.
+changes. A profile at a URL is cloned without the content of its history, which povy
+never reads, so a repository with a heavy history costs no more than its files.
 
 ## Profiles
 
@@ -187,6 +188,18 @@ A profile meant for a context follows a few rules:
   get the context's `[env]`: install with mise the tools that read those variables.
 - When two profiles have a command of the same name, the first in `config.toml`
   wins, and `apply` and `doctor` say so.
+
+To move the default profile to a context, first add the commands its rc blocks call to
+your own mise config, naming the file: while the default profile provides a tool,
+`mise use -g` writes it into povy's `~/.config/mise/conf.d/povy.toml`, which `apply`
+rewrites.
+
+```bash
+mise use --path ~/.config/mise/config.toml starship
+```
+
+Then move `profile`, `profile_ref` and `profile_path` into a `[contexts.<id>]` table, and
+run `povy apply`, which removes the former clone.
 
 ## Banner
 

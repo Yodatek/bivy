@@ -47,7 +47,10 @@ Describe 'contexts below directories' {
         Write-PovyContextConfig $config @(
             (Get-PovyContextTable 'org' '~/work/org/' @{ email = 'org@example.org'; profile = $orgRepo }),
             (Get-PovyContextTable 'product' '~/work/org/product/' @{ email = 'product@example.org'; name = 'Prod'; profile = $productRepo }),
-            (Get-PovyContextTable 'solo' '~/solo/' @{ email = 'solo@example.org' })
+            (Get-PovyContextTable 'solo' '~/solo/' @{ email = 'solo@example.org' }),
+            "[[identities]]`ndir = `"~/work/`"`nemail = `"work@example.org`"",
+            # The product context, of the same directory, wins over it.
+            "[[identities]]`ndir = `"~/work/org/product/`"`nemail = `"shadowed@example.org`""
         )
         $apply = Invoke-PovyContextApply $sandbox $config
         if ($apply.Code -ne 0) { throw "povy apply failed: $($apply.Output)" }
@@ -70,8 +73,8 @@ Describe 'contexts below directories' {
         (Get-PovyMiseEnv (Join-Path $sandbox.Home 'elsewhere')).ContainsKey('CTX') | Should -BeFalse
     }
 
-    It 'sets the Git identity of each context, the deepest winning' {
-        foreach ($repo in 'work/org/product/r', 'work/org/r', 'solo/r', 'r') {
+    It 'sets the Git identity of each context and identity, the deepest winning' {
+        foreach ($repo in 'work/org/product/r', 'work/org/r', 'work/r', 'solo/r', 'r') {
             $path = Join-Path $sandbox.Home $repo
             New-Item -ItemType Directory -Force -Path $path | Out-Null
             git -C $path init --quiet
@@ -79,6 +82,7 @@ Describe 'contexts below directories' {
         git -C (Join-Path $sandbox.Home 'work/org/product/r') config user.email | Should -BeExactly 'product@example.org'
         git -C (Join-Path $sandbox.Home 'work/org/product/r') config user.name | Should -BeExactly 'Prod'
         git -C (Join-Path $sandbox.Home 'work/org/r') config user.email | Should -BeExactly 'org@example.org'
+        git -C (Join-Path $sandbox.Home 'work/r') config user.email | Should -BeExactly 'work@example.org'
         git -C (Join-Path $sandbox.Home 'solo/r') config user.email | Should -BeExactly 'solo@example.org'
         git -C (Join-Path $sandbox.Home 'r') config user.email | Should -BeExactly 'test@example.org'
     }
@@ -88,7 +92,7 @@ Describe 'contexts below directories' {
         Test-Path -LiteralPath (Join-Path $sandbox.State 'contexts/solo') | Should -BeFalse
     }
 
-    It 'lists the contexts of a directory with status, the deepest first' {
+    It 'lists the contexts and identities of a directory with status, the deepest first' {
         $dir = Join-Path $sandbox.Home 'work/org/product/app'
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
         $status = Invoke-PovyCli status $dir
@@ -96,8 +100,10 @@ Describe 'contexts below directories' {
         $lines = @($status.Output -split "`n")
         $lines[0] | Should -Match 'app, the first that sets something wins:$'
         $lines[1] | Should -Match '^\s+product\s+~/work/org/product/: profile product, Git identity product@example\.org$'
-        $lines[2] | Should -Match '^\s+org\s+~/work/org/: profile org, Git identity org@example\.org$'
-        $lines[3] | Should -Match '^\s+\(default\)\s+every directory: Git identity test@example\.org$'
+        $lines[2] | Should -Match '^\s+\(identity\)\s+~/work/org/product/: Git identity shadowed@example\.org$'
+        $lines[3] | Should -Match '^\s+org\s+~/work/org/: profile org, Git identity org@example\.org$'
+        $lines[4] | Should -Match '^\s+\(identity\)\s+~/work/: Git identity work@example\.org$'
+        $lines[5] | Should -Match '^\s+\(default\)\s+every directory: Git identity test@example\.org$'
     }
 
     It 'passes doctor, which checks every context' {
@@ -200,6 +206,33 @@ Describe 'a context that goes' {
         Test-Path -LiteralPath (Join-Path $sandbox.Home 'work/gone/.config') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $sandbox.State 'contexts/gone') | Should -BeFalse
         Get-Content -LiteralPath $contextEnv | Should -Contain 'KEEP=1'
+    }
+}
+
+Describe 'a default profile moved to a context' {
+    BeforeAll {
+        $sandbox = New-PovySandbox
+        $repo = Join-Path $sandbox.Root 'moved'
+        New-PovyCustomProfile $repo -Team "[env]`nCTX = `"moved`""
+        $config = Join-Path $sandbox.Root 'config.toml'
+        Write-PovyTestConfig $config $repo
+        $first = Invoke-PovyContextApply $sandbox $config
+        $cloned = Test-Path -LiteralPath $sandbox.Clone
+        Write-PovyContextConfig $config @((Get-PovyContextTable 'moved' '~/work/moved/' @{ profile = $repo }))
+        $second = Invoke-PovyContextApply $sandbox $config
+    }
+    AfterAll {
+        Remove-PovySandbox $sandbox
+    }
+
+    It 'leaves no clone of the former default profile' {
+        $first.Code | Should -Be 0 -Because $first.Output
+        $cloned | Should -BeTrue
+        $second.Code | Should -Be 0 -Because $second.Output
+        $second.Output | Should -Match 'the clone of the former default profile'
+        Test-Path -LiteralPath $sandbox.Clone | Should -BeFalse
+        (Get-PovyMiseEnv (Join-Path $sandbox.Home 'work/moved/app'))['CTX'] | Should -BeExactly 'moved'
+        (Get-PovyMiseEnv (Join-Path $sandbox.Home 'elsewhere')).ContainsKey('CTX') | Should -BeFalse
     }
 }
 

@@ -170,6 +170,11 @@ function Invoke-PovyApply {
         if ($script:Ctx.Profile) { Import-PovyProfile $script:Ctx.Profile $script:Ctx.ProfilePath }
         if (-not $id) {
             Write-PovyMiseConf
+            # A default profile that config.toml no longer names leaves no clone either.
+            if (-not $script:Ctx.Profile -and (Test-Path -LiteralPath $script:PovyProfileDir)) {
+                Remove-Item -LiteralPath $script:PovyProfileDir -Recurse -Force
+                Write-PovyInfo "removed $(Format-PovyPath $script:PovyProfileDir), the clone of the former default profile"
+            }
         } else {
             Set-PovyContextConf
             if (-not $script:Ctx.Profile) {
@@ -472,9 +477,9 @@ function Format-PovyStatusLine([string]$Label, [string]$Where, [string]$Email, [
     return ('  {0,-12} {1}: {2}' -f $Label, $Where, $text)
 }
 
-# The contexts that apply in a directory, the current one by default, the deepest
-# first, then the default profile and identity, which every directory gets unless a
-# context sets its own.
+# The contexts and the [[identities]] entries that apply in a directory, the current
+# one by default, the deepest first, then the default profile and identity, which
+# every directory gets unless a context sets its own.
 function Invoke-PovyStatus([string[]]$Arguments) {
     if ($Arguments.Count -gt 1) { Stop-Povy 'status takes at most one directory' }
     Initialize-PovyPath
@@ -487,8 +492,8 @@ function Invoke-PovyStatus([string[]]$Arguments) {
     }
     $dir = $resolved.ProviderPath.TrimEnd('\', '/')
     Write-Output "$(Format-PovyPath $dir), the first that sets something wins:"
-    foreach ($context in Get-PovyContextMatch $dir) {
-        Write-Output (Format-PovyStatusLine $context.Id $context.Dir $context.Email $context.Profile $context.ProfileRef)
+    foreach ($entry in Get-PovyContextMatch $dir) {
+        Write-Output (Format-PovyStatusLine $entry.Label $entry.Dir $entry.Email $entry.Profile $entry.ProfileRef)
     }
     Write-Output (Format-PovyStatusLine '(default)' 'every directory' $script:Cfg.Email $script:Cfg.Profile $script:Cfg.ProfileRef)
 }

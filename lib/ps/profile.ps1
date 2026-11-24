@@ -32,10 +32,19 @@ function Invoke-PovyGit([string[]]$Arguments) {
 # Clones the profile, then checks out the ref given: a branch, a tag or a commit.
 # The clone keeps the ref it was asked for, so that another ref, or none, gives a
 # new clone.
+#
+# A profile at a URL, or at an address such as git@host:path, comes without the
+# content of its history, which povy never reads: git fetches the files of a commit
+# when it checks it out, and a heavy history costs nothing. A local path stays a full
+# clone, as git ignores the filter there.
 function Copy-PovyProfile([string]$Url, [string]$Ref) {
     $tmp = Join-Path $script:PovyStateDir ('profile-clone.' + [System.Guid]::NewGuid().ToString('N').Substring(0, 8))
     $clone = Join-Path $tmp 'profile'
-    $result = Invoke-PovyGit @('clone', '--quiet', '--', $Url, $clone)
+    $arguments = @('clone', '--quiet')
+    # As git reads it: a colon before the first slash makes a URL or an address, unless
+    # it follows a drive letter.
+    if ($Url -notmatch '^[A-Za-z]:[\\/]' -and ($Url -split '[\\/]', 2)[0].Contains(':')) { $arguments += '--filter=blob:none' }
+    $result = Invoke-PovyGit ($arguments + @('--', $Url, $clone))
     if ($result.Code -eq 0 -and $Ref) { $result = Invoke-PovyGit @('-C', $clone, 'checkout', '--quiet', $Ref, '--') }
     if ($result.Code -eq 0) { $result = Invoke-PovyGit @('-C', $clone, 'config', 'povy.ref', $Ref) }
     $suffix = if ($Ref) { ", ref $Ref" } else { '' }

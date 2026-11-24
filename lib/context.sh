@@ -205,16 +205,28 @@ context_bin_collisions_text() {
   done <<<"$1"
 }
 
-# Prints "id<TAB>dir" for each context whose directory holds the given one, the
-# deepest first.
+# The contexts and the [[identities]] entries whose directory holds the given one,
+# the deepest first: "context<TAB>id", or "identity<TAB>dir<TAB>email". They come in
+# the reverse of the order Git applies them, so that of an identity and a context of
+# the same directory, the context, which Git applies last, comes first.
 context_matching() {
-  local target=$1 id dir path
-  while IFS= read -r id; do
-    [ -n "$id" ] || continue
-    dir=$(context_field "$id" 2)
-    path=$(context_path "$dir")
-    if [ "$target" = "$path" ] || path_within "$target" "$path"; then
-      printf '%s\t%s\t%s\n' "${#path}" "$id" "$dir"
-    fi
-  done <<<"$(context_ids)" | sort -t$'\t' -k1,1nr | cut -f2-
+  local target=$1 n=0 id dir email path
+  {
+    while IFS=$'\t' read -r dir _ email; do
+      [ -n "$dir" ] || continue
+      n=$((n + 1))
+      path=$(context_path "$dir")
+      if [ "$target" = "$path" ] || path_within "$target" "$path"; then
+        printf '%s\t%s\tidentity\t%s\t%s\n' "${#path}" "$n" "$dir" "$email"
+      fi
+    done <<<"$CFG_IDENTITIES"
+    while IFS= read -r id; do
+      [ -n "$id" ] || continue
+      n=$((n + 1))
+      path=$(context_path "$(context_field "$id" 2)")
+      if [ "$target" = "$path" ] || path_within "$target" "$path"; then
+        printf '%s\t%s\tcontext\t%s\n' "${#path}" "$n" "$id"
+      fi
+    done <<<"$(context_ids)"
+  } | sort -t$'\t' -k1,1nr -k2,2nr | cut -f3-
 }
