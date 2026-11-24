@@ -6,6 +6,10 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-24
+
+A directory now chooses its profile and its Git identity: a context applies a team's tools, `[env]` and identity below a directory, for the shells, IDEs and agents started there. The Contexts section of the README explains how to set one up, and how to move the default profile to one.
+
 ### Added
 
 - Contexts: `[contexts.<id>]` in `config.toml` applies a profile, a Git identity, or both, below a directory, through a mise config that `apply` writes there, so that the IDEs and agents opened there get it too. Nested contexts add up, the deepest winning, and each context reads its secrets in its own `<id>.env`, then in `.env`. `apply` stops when two profiles write the same file.
@@ -63,6 +67,7 @@ First release.
 - A sample profile in `_samples/profile`.
 - `povy --version`.
 
-[Unreleased]: https://github.com/Yodatek/povy/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Yodatek/povy/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Yodatek/povy/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Yodatek/povy/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Yodatek/povy/releases/tag/v0.1.0
