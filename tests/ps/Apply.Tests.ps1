@@ -245,6 +245,40 @@ Describe 'profile_ref' {
     }
 }
 
+Describe 'the clone of a profile' {
+    BeforeAll {
+        $sandbox = New-PovySandbox
+        $profileRepo = Join-Path $sandbox.Root 'profile'
+        $config = Join-Path $sandbox.Root 'config.toml'
+        # A file that only the history holds.
+        New-PovyCustomProfile $profileRepo -Team '# team' -Files @{ heavy = 'old content' }
+        $old = git -C $profileRepo rev-parse HEAD:heavy
+        git -C $profileRepo rm --quiet heavy
+        Add-PovyGitCommit $profileRepo
+        # Git servers let clients filter what they fetch; a local repository, when told to.
+        git -C $profileRepo config uploadpack.allowFilter true
+    }
+    AfterAll {
+        Remove-PovySandbox $sandbox
+    }
+
+    It 'comes without the content of its history from a URL' {
+        Write-PovyTestConfig $config ('file:///' + $profileRepo.Replace('\', '/').TrimStart('/'))
+        $run = Invoke-PovyCli init --config $config
+        $run.Code | Should -Be 0 -Because $run.Output
+        git -C $sandbox.Clone config remote.origin.partialclonefilter | Should -BeExactly 'blob:none'
+        git -C $sandbox.Clone rev-list --objects --missing=print --all | Should -Contain "?$old"
+    }
+
+    It 'comes whole from a local path' {
+        Write-PovyTestConfig $config $profileRepo
+        $run = Invoke-PovyCli init --config $config
+        $run.Code | Should -Be 0 -Because $run.Output
+        git -C $sandbox.Clone config remote.origin.partialclonefilter | Should -BeNullOrEmpty
+        git -C $sandbox.Clone cat-file -t $old | Should -BeExactly 'blob'
+    }
+}
+
 Describe 'what povy 0.1 read' {
     BeforeEach {
         $sandbox = New-PovySandbox

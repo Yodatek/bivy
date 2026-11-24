@@ -203,14 +203,27 @@ function Get-PovyBinCollision($Bins) {
     return $collisions.ToArray()
 }
 
-# The contexts whose directory holds the given one, the deepest first.
+# The contexts and the [[identities]] entries whose directory holds the given one,
+# the deepest first, each with the Label that status shows. They come in the reverse
+# of the order Git applies them, so that of an identity and a context of the same
+# directory, the context, which Git applies last, comes first.
 function Get-PovyContextMatch([string]$Dir) {
-    $matched = foreach ($context in $script:Cfg.Contexts) {
-        $path = Get-PovyContextPath $context.Dir
+    $entries = @(foreach ($identity in $script:Cfg.Identities) {
+            [pscustomobject]@{ Label = '(identity)'; Dir = $identity.Dir; Email = $identity.Email; Profile = ''; ProfileRef = '' }
+        }) + @(foreach ($context in $script:Cfg.Contexts) {
+            [pscustomobject]@{
+                Label = $context.Id; Dir = $context.Dir; Email = $context.Email; Profile = $context.Profile; ProfileRef = $context.ProfileRef
+            }
+        })
+    $order = 0
+    $matched = foreach ($entry in $entries) {
+        $order++
+        $path = Get-PovyContextPath $entry.Dir
         $same = if ($IsWindows) { $Dir -ieq $path } else { $Dir -ceq $path }
         if ($same -or ((Test-Path -LiteralPath $path) -and (Test-PovyWithin $Dir $path))) {
-            [pscustomobject]@{ Context = $context; Length = $path.Length }
+            [pscustomobject]@{ Entry = $entry; Length = $path.Length; Order = $order }
         }
     }
-    return @($matched | Sort-Object -Property Length -Descending -Stable | ForEach-Object { $_.Context })
+    $sorted = $matched | Sort-Object -Property @{ Expression = 'Length'; Descending = $true }, @{ Expression = 'Order'; Descending = $true }
+    return @($sorted | ForEach-Object { $_.Entry })
 }

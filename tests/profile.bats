@@ -258,6 +258,30 @@ TEAM = "v1"' ""
   [ "$(git -C "$CLONE" remote get-url origin)" = "$PROFILE.2" ]
 }
 
+@test "a profile at a URL comes without the content of its history, one at a path whole" {
+  local old
+  # A file that only the history holds.
+  make_mise_profile "$PROFILE" '[env]
+TEAM = "v1"' "" 'heavy=old content'
+  old=$(git -C "$PROFILE" rev-parse HEAD:heavy)
+  git -C "$PROFILE" rm --quiet heavy
+  commit_all "$PROFILE"
+  # Git servers let clients filter what they fetch; a local repository, when told to.
+  git -C "$PROFILE" config uploadpack.allowFilter true
+
+  write_config "$CONFIG" "file://$PROFILE"
+  povy init --config "$CONFIG"
+  [ "$(git -C "$CLONE" config remote.origin.partialclonefilter)" = blob:none ]
+  git -C "$CLONE" rev-list --objects --missing=print --all | grep -qxF "?$old"
+  grep -qxF 'TEAM = "v1"' "$CLONE/team.toml"
+
+  write_config "$CONFIG" "$PROFILE"
+  povy init --config "$CONFIG"
+  run git -C "$CLONE" config remote.origin.partialclonefilter
+  [ "$status" -ne 0 ]
+  git -C "$CLONE" cat-file -e "$old"
+}
+
 @test "mise includes team.toml in every directory, and the user's own mise config wins" {
   make_mise_profile "$PROFILE" '[env]
 POVY_LEVEL = "team"

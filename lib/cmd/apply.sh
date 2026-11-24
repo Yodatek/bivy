@@ -63,6 +63,11 @@ cmd_apply() {
     [ -z "$CFG_PROFILE" ] || profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH"
     if [ -z "$id" ]; then
       team_conf_write
+      # A default profile that config.toml no longer names leaves no clone either.
+      if [ -z "$CFG_PROFILE" ] && [ -d "$POVY_PROFILE_DIR" ]; then
+        rm -rf "${POVY_PROFILE_DIR:?}" || die "cannot remove $POVY_PROFILE_DIR"
+        info "removed $(tilde_path "$POVY_PROFILE_DIR"), the clone of the former default profile"
+      fi
     else
       context_conf_apply
       if [ -z "$CFG_PROFILE" ]; then

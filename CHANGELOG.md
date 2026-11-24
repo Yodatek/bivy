@@ -9,11 +9,13 @@ The notable changes of each release. The format follows
 ### Added
 
 - Contexts: `[contexts.<id>]` in `config.toml` applies a profile, a Git identity, or both, below a directory, through a mise config that `apply` writes there, so that the IDEs and agents opened there get it too. Nested contexts add up, the deepest winning, and each context reads its secrets in its own `<id>.env`, then in `.env`. `apply` stops when two profiles write the same file.
-- `povy status`, which shows the contexts that apply in a directory.
+- `povy status`, which shows the contexts and `[[identities]]` entries that apply in a directory.
 
 ### Changed
 
 - Git identities by directory apply parents first, so the deepest directory wins whatever the order of `config.toml`.
+- A profile at a URL is cloned without the content of its history, which povy never reads. A clone made before stays whole: delete it, and the next `apply` clones the profile again.
+- `apply` removes the clone of a default profile that `config.toml` no longer names, as it does for a context.
 
 ## [0.2.0] - 2026-11-23
 
