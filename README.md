@@ -160,6 +160,18 @@ profile, the profile's commands go on every `PATH`, and the context's identity
 applies to the repositories below its directory. `povy status` shows which contexts
 apply where.
 
+In interactive zsh, bash and PowerShell, `POVY_CONTEXT` holds the id of the deepest
+context of the current directory, and is unset outside them, for the prompt to show.
+With Starship:
+
+```toml
+format = "${env_var.POVY_CONTEXT}$all"
+
+[env_var.POVY_CONTEXT]
+format = "[$env_value]($style) "
+style = "bold yellow"
+```
+
 The secrets of a context come from `~/.config/povy/<id>.env`, then from the shared
 `.env`, and `apply` adds those it lacks to `<id>.env`. A context removed from
 `config.toml` takes its mise config and its clone along at the next `apply`; its
@@ -228,7 +240,7 @@ in the terminals of VS Code and its forks, Zed, JetBrains IDEs, Emacs and Claude
 - `mise bootstrap` applies the profile's `mise.toml`, as its documentation describes.
 - Marked blocks in the startup files source `~/.config/povy/env.sh`, which puts the
   shims, the profile's commands and `~/.local/bin` on PATH by absolute path, and
-  `~/.config/povy/interactive.sh`, which shows the banner:
+  `~/.config/povy/interactive.sh`, which sets `POVY_CONTEXT` and shows the banner:
   - `env` sits at the top of `~/.zshenv`, of `$ZDOTDIR/.zshenv` when you set `ZDOTDIR`,
     and of `.bashrc`, and at the bottom of `.zprofile` and your bash login file, after
     what they add to PATH, such as `brew shellenv`;
