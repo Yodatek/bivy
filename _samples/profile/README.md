@@ -24,7 +24,8 @@ section. Things to know:
 - A file takes one block across every mise config: a profile's `~/.zshrc` block
   replaces one that the machine's own config declares for that file.
 - A profile can also serve a context, below a directory: see Contexts in the povy
-  README. Its blocks in rc files still run in every shell.
+  README. Its blocks in rc files still run in every shell, and `starship.toml` shows
+  the context of the current directory, from `POVY_CONTEXT`.
 
 ## Try it
 

@@ -106,6 +106,32 @@ Describe 'contexts below directories' {
         $lines[5] | Should -Match '^\s+\(default\)\s+every directory: Git identity test@example\.org$'
     }
 
+    It 'keeps POVY_CONTEXT on the context of the current location in a new session' {
+        foreach ($dir in 'work/org/product/app', 'work/organic', 'solo') {
+            New-Item -ItemType Directory -Force -Path (Join-Path $sandbox.Home $dir) | Out-Null
+        }
+        $command = @(
+            ". '$($sandbox.PsProfile)'",
+            '"home=$env:POVY_CONTEXT"',
+            "Set-Location '$(Join-Path $sandbox.Home 'work/org/product/app')'",
+            '"product=$env:POVY_CONTEXT"',
+            "Set-Location '$(Join-Path $sandbox.Home 'work/organic')'",
+            '"organic=$env:POVY_CONTEXT"',
+            "Set-Location '$(Join-Path $sandbox.Home 'solo')'",
+            '"solo=$env:POVY_CONTEXT"',
+            'Set-Location Env:',
+            '"env=$env:POVY_CONTEXT"'
+        ) -join '; '
+        # A value left by the session that started this one goes.
+        $env:POVY_CONTEXT = 'stale'
+        try {
+            $session = @(& $script:Pwsh -NoProfile -WorkingDirectory $sandbox.Home -Command $command 2>&1 | ForEach-Object { "$_" })
+        } finally {
+            Remove-Item Env:POVY_CONTEXT -ErrorAction Ignore
+        }
+        $session | Should -Be @('home=', 'product=product', 'organic=', 'solo=solo', 'env=')
+    }
+
     It 'passes doctor, which checks every context' {
         $doctor = Invoke-PovyCli doctor
         $doctor.Code | Should -Be 0 -Because $doctor.Output

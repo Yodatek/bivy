@@ -316,6 +316,40 @@ CTX = "product"' ""
   [[ "$output" == *"context org"* ]] || false
 }
 
+@test "an interactive shell keeps POVY_CONTEXT on the context of its directory, banner or not" {
+  write_contexts 'banner = false' "$(context org '~/work/org/' email=org@example.org)" \
+    "$(context product '~/work/org/product/' email=product@example.org)"
+  povy init --config "$CONFIG"
+  apply_ok
+  mkdir -p "$HOME/work/org/product/app" "$HOME/work/organic"
+  # bash runs the hook before each prompt, first, and keeps $? for the next command.
+  run bash -c 'cd "$HOME" && POVY_CONTEXT=stale bash -i 2>/dev/null' <<'EOF'
+echo "home=${POVY_CONTEXT-unset}"
+cd ~/work/org/product/app
+echo "product=$POVY_CONTEXT"
+cd ~/work/organic
+echo "organic=${POVY_CONTEXT-unset}"
+PROMPT_COMMAND="$PROMPT_COMMAND;echo status=\$?"
+cd ~/work/org
+(exit 3)
+echo "org=$POVY_CONTEXT"
+EOF
+  echo "$output"
+  [[ "$output" == *"home=unset"*"product=product"*"organic=unset"*"status=3"*"org=org"* ]] || false
+  # zsh runs it on each cd.
+  command -v zsh >/dev/null || return 0
+  run bash -c 'cd "$HOME" && POVY_CONTEXT=stale zsh -i -c "$1" 2>/dev/null' _ '
+echo "home=${POVY_CONTEXT-unset}"
+cd ~/work/org/product/app
+echo "product=$POVY_CONTEXT"
+cd ~/work/organic
+echo "organic=${POVY_CONTEXT-unset}"
+cd ~/work/org
+echo "org=$POVY_CONTEXT"'
+  echo "$output"
+  [[ "$output" == *"home=unset"*"product=product"*"organic=unset"*"org=org"* ]] || false
+}
+
 @test "config.toml refuses contexts it cannot apply" {
   local body
   for body in '[contexts.Bad]

@@ -2,7 +2,12 @@
 "$schema" = "https://starship.rs/config-schema.json"
 
 add_newline = false
-format = "$directory$git_branch$git_status$nodejs$java$cmd_duration$line_break$character"
+format = "${env_var.POVY_CONTEXT}$directory$git_branch$git_status$nodejs$java$cmd_duration$line_break$character"
+
+# The povy context of the current directory, when there is one.
+[env_var.POVY_CONTEXT]
+format = "[$env_value]($style) "
+style = "bold yellow"
 
 [directory]
 style = "bold cyan"

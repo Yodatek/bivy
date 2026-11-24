@@ -181,7 +181,7 @@ env_sh_path() {
   [ "$output" = '[]' ]
 }
 
-@test "interactive.sh only shows the banner; with banner = false, it does nothing" {
+@test "without contexts, interactive.sh only shows the banner; with banner = false, it does nothing" {
   CFG_BANNER=true
   shell_write_interactive
   [ "$(grep -c 'banner --auto' "$POVY_INTERACTIVE_SH")" -eq 1 ]

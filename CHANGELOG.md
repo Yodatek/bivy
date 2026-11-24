@@ -6,6 +6,10 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `POVY_CONTEXT` in interactive zsh, bash and PowerShell: the id of the deepest context of the current directory, unset outside them, for the prompt to show.
+
 ## [0.3.0] - 2026-11-24
 
 A directory now chooses its profile and its Git identity: a context applies a team's tools, `[env]` and identity below a directory, for the shells, IDEs and agents started there. The Contexts section of the README explains how to set one up, and how to move the default profile to one.
