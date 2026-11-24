@@ -175,6 +175,7 @@ echo only-b'
 
   run povy doctor
   echo "$output"
+  [ "$status" -eq 0 ]
   [[ "$output" == *"[warn] command hello: in context a and in context b"* ]] || false
 }
 

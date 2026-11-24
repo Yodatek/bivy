@@ -249,7 +249,8 @@ doctor_check_profile() {
 }
 
 # The default profile and those of the contexts, then what they must not share:
-# the files they write, and the names of their commands.
+# the files they write, and the names of their commands. Sets POVY_BINS as apply
+# does, for the check of the file for graphical apps, which lists them on Linux.
 doctor_check_profiles() {
   local id targets="" bins="" conflicts collisions line
   for id in "" $(context_ids); do
@@ -264,6 +265,7 @@ doctor_check_profiles() {
     [ -z "$PROFILE_BIN" ] || bins="$bins$id"$'\t'"$PROFILE_BIN"$'\n'
   done
   context_select ""
+  POVY_BINS=$(printf '%s' "$bins" | cut -f2)
   conflicts=$(context_conflicts "$targets")
   while IFS= read -r line; do
     [ -z "$line" ] || doctor_fail "two profiles write $line"
