@@ -9,9 +9,18 @@ CFG_PROFILE=""
 CFG_PROFILE_REF=""
 CFG_PROFILE_PATH=""
 CFG_IDENTITIES=""
+CFG_CONTEXTS=""
 CFG_BANNER=true
+# The top-level profile, which applies in every directory. CFG_PROFILE and the
+# keys after it hold the profile of the current context, which context_select sets.
+CFG_DEFAULT_PROFILE=""
+CFG_DEFAULT_PROFILE_REF=""
+CFG_DEFAULT_PROFILE_PATH=""
 
 POVY_REF_RE='^[A-Za-z0-9_][A-Za-z0-9._/-]*$'
+POVY_CONTEXT_ID_RE='^[a-z0-9][a-z0-9-]*$'
+# The shared .env, which a context reads after its own <id>.env.
+POVY_ENV_FALLBACK=""
 
 valid_name() {
   [ -n "$1" ] && ! has_control_chars "$1"
@@ -19,6 +28,11 @@ valid_name() {
 
 valid_email() {
   [[ "$1" =~ ^[^[:space:]@]+@[^[:space:]@]+$ ]] && ! has_control_chars "$1"
+}
+
+# A branch, a tag or a commit that git checkout takes, and never an option.
+valid_ref() {
+  [[ "$1" =~ $POVY_REF_RE ]] && [[ "$1" != *..* ]]
 }
 
 # An empty URL means no profile. Credentials do not belong in config.toml.
@@ -93,6 +107,73 @@ toml_identities() {
   done
 }
 
+# Prints "id<TAB>dir<TAB>name<TAB>email<TAB>profile<TAB>ref<TAB>path" for each
+# [contexts.<id>] table, in the order of the file. A context sets a Git identity, a
+# profile, or both, below its directory. Every field is checked against control
+# characters, so tabs and newlines cannot shift the columns.
+toml_contexts() {
+  local file=$1 tag ids id entry keys key dir name email profile ref path problem seen=""
+  tag=$(toml_query "$file" '(.contexts // {}) | tag') || die "$file is not valid TOML"
+  # yq gives no tag to a table that only dotted headers such as [contexts.a] declare.
+  case "$tag" in
+    '!!map' | '') ;;
+    *) die "$file: contexts must be written as [contexts.<id>] tables" ;;
+  esac
+  ids=$(toml_query "$file" '(.contexts // {}) | keys | .[]') || die "$file is not valid TOML"
+  while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    [[ "$id" =~ $POVY_CONTEXT_ID_RE ]] ||
+      die "$file: invalid context id: $id; use lowercase letters, digits and dashes"
+    entry="contexts.$id"
+    tag=$(toml_query "$file" ".contexts[\"$id\"] | tag") || die "$file is not valid TOML"
+    case "$tag" in
+      '!!map' | '') ;;
+      *) die "$file: $entry must be a table" ;;
+    esac
+    keys=$(toml_query "$file" ".contexts[\"$id\"] | keys | .[]") || die "$file is not valid TOML"
+    while IFS= read -r key; do
+      case "$key" in
+        dir | name | email | profile | profile_ref | profile_path) ;;
+        *) die "$file: $entry: unknown key: $key" ;;
+      esac
+    done <<<"$keys"
+    dir=$(toml_string "$file" "contexts[\"$id\"].dir") || exit 1
+    name=$(toml_string "$file" "contexts[\"$id\"].name") || exit 1
+    email=$(toml_string "$file" "contexts[\"$id\"].email") || exit 1
+    profile=$(toml_string "$file" "contexts[\"$id\"].profile") || exit 1
+    ref=$(toml_string "$file" "contexts[\"$id\"].profile_ref") || exit 1
+    path=$(toml_string "$file" "contexts[\"$id\"].profile_path") || exit 1
+    [ -n "$dir" ] || die "$file: $entry: dir is required"
+    dir=$(identity_dir "$dir") || die "$file: $entry: dir must start with ~/ or /"
+    # Its conf.d file would be mise's global one.
+    [ "$(context_path "$dir")" != "$HOME" ] || die "$file: $entry: dir must be below your home directory"
+    case "$seen" in
+      *$'\n'"$dir"$'\n'*) die "$file: $entry: another context has the directory $dir" ;;
+    esac
+    seen="$seen"$'\n'"$dir"$'\n'
+    [ -n "$email$profile" ] || die "$file: $entry: give it an email, a profile, or both"
+    if [ -n "$email" ]; then
+      [ -n "$name" ] || name=$CFG_NAME
+      valid_name "$name" || die "$file: $entry: invalid name"
+      valid_email "$email" || die "$file: $entry: email is not a valid address"
+    elif [ -n "$name" ]; then
+      die "$file: $entry: name needs an email"
+    fi
+    problem=$(profile_url_problem "$profile")
+    [ -z "$problem" ] || die "$file: $entry: $problem"
+    if [ -n "$ref" ]; then
+      [ -n "$profile" ] || die "$file: $entry: profile_ref needs a profile"
+      valid_ref "$ref" || die "$file: $entry: invalid profile_ref: $ref"
+    fi
+    path=${path%/}
+    if [ -n "$path" ]; then
+      [ -n "$profile" ] || die "$file: $entry: profile_path needs a profile"
+      valid_relative_path "$path" || die "$file: $entry: invalid profile_path: $path"
+    fi
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$dir" "$name" "$email" "$profile" "$ref" "$path"
+  done <<<"$ids"
+}
+
 # Prints true or false for a top-level boolean, or the default when it is absent.
 toml_bool() {
   local file=$1 key=$2 default=$3 tag
@@ -122,8 +203,7 @@ config_read() {
   fi
   if [ -n "$CFG_PROFILE_REF" ]; then
     [ -n "$CFG_PROFILE" ] || die "$file: $ref_key needs a profile"
-    [[ "$CFG_PROFILE_REF" =~ $POVY_REF_RE ]] && [[ "$CFG_PROFILE_REF" != *..* ]] ||
-      die "$file: invalid $ref_key: $CFG_PROFILE_REF"
+    valid_ref "$CFG_PROFILE_REF" || die "$file: invalid $ref_key: $CFG_PROFILE_REF"
   fi
   CFG_PROFILE_PATH=$(toml_string "$file" profile_path) || exit 1
   CFG_PROFILE_PATH=${CFG_PROFILE_PATH%/}
@@ -134,7 +214,11 @@ config_read() {
   problem=$(profile_url_problem "$CFG_PROFILE")
   [ -z "$problem" ] || die "$file: $problem"
   CFG_IDENTITIES=$(toml_identities "$file") || exit 1
+  CFG_CONTEXTS=$(toml_contexts "$file") || exit 1
   CFG_BANNER=$(toml_bool "$file" banner true) || exit 1
+  CFG_DEFAULT_PROFILE=$CFG_PROFILE
+  CFG_DEFAULT_PROFILE_REF=$CFG_PROFILE_REF
+  CFG_DEFAULT_PROFILE_PATH=$CFG_PROFILE_PATH
 }
 
 config_load() {
@@ -180,11 +264,12 @@ env_ensure() {
   chmod 600 "$POVY_ENV_FILE"
 }
 
-# Prints the value of a key, or returns 1 when the key has no line. The last line
-# wins, as it would in a shell. Surrounding quotes are removed, CRLF is tolerated.
-env_value() {
-  local key=$1 line value found=1
-  [ -f "$POVY_ENV_FILE" ] || return 1
+# Prints the value of a key in one file, or returns 1 when the key has no line. The
+# last line wins, as it would in a shell. Surrounding quotes are removed, CRLF is
+# tolerated.
+env_file_value() {
+  local file=$1 key=$2 line value found=1
+  [ -f "$file" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
     line=${line%$'\r'}
     line=${line#"${line%%[![:space:]]*}"}
@@ -195,7 +280,7 @@ env_value() {
         found=0
         ;;
     esac
-  done <"$POVY_ENV_FILE"
+  done <"$file"
   [ "$found" -eq 0 ] || return 1
   case "$value" in
     \"*\") value=${value#\"} && value=${value%\"} ;;
@@ -204,12 +289,33 @@ env_value() {
   printf '%s' "$value"
 }
 
-# Adds an empty line for each listed key that has none; existing lines stay.
+# Prints the value of a secret of the current context: the first value that is not
+# empty, in POVY_ENV_FILE, then POVY_ENV_FALLBACK. Returns 1 when no file has the key.
+env_value() {
+  local key=$1 file value found=1
+  for file in "$POVY_ENV_FILE" ${POVY_ENV_FALLBACK:+"$POVY_ENV_FALLBACK"}; do
+    value=$(env_file_value "$file" "$key") || continue
+    found=0
+    if [ -n "$value" ]; then
+      printf '%s' "$value"
+      return 0
+    fi
+  done
+  return "$found"
+}
+
+# Adds an empty line to POVY_ENV_FILE for each listed key that no file has, and
+# creates that file, private, when it needs one. Existing lines stay.
 env_seed() {
   local keys=$1 key
   while IFS= read -r key; do
     [ -n "$key" ] || continue
     env_value "$key" >/dev/null && continue
+    if [ ! -e "$POVY_ENV_FILE" ]; then
+      (umask 077 && echo '# Secrets for povy. Never versioned.' >"$POVY_ENV_FILE") ||
+        die "cannot create $POVY_ENV_FILE"
+      info "wrote $POVY_ENV_FILE"
+    fi
     if [ -s "$POVY_ENV_FILE" ] && [ -n "$(tail -c 1 "$POVY_ENV_FILE")" ]; then
       echo >>"$POVY_ENV_FILE"
     fi

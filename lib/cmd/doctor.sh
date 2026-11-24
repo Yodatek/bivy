@@ -13,12 +13,12 @@ doctor_fail() {
 
 # Runs a command in a shell started from an almost empty environment, the way an
 # IDE or an agent would: no ZDOTDIR, no mise on PATH. Only the startup files can
-# put the shims on its PATH. It runs from HOME because mise shims refuse to run
-# under a directory holding an untrusted mise.toml, which says nothing about this
-# machine's setup.
+# put the shims on its PATH. It runs from HOME by default, because mise shims refuse
+# to run under a directory holding an untrusted mise.toml, which says nothing about
+# this machine's setup; a context's checks run from its directory.
 doctor_probe() {
-  local shell_cmd=$1 flags=$2 script=$3
-  cd "$HOME" && env -i HOME="$HOME" USER="${USER:-}" PATH=/usr/bin:/bin \
+  local shell_cmd=$1 flags=$2 script=$3 dir=${4:-$HOME}
+  cd "$dir" && env -i HOME="$HOME" USER="${USER:-}" PATH=/usr/bin:/bin \
     ${MISE_DATA_DIR:+MISE_DATA_DIR="$MISE_DATA_DIR"} \
     ${MISE_CONFIG_DIR:+MISE_CONFIG_DIR="$MISE_CONFIG_DIR"} \
     ${XDG_CONFIG_HOME:+XDG_CONFIG_HOME="$XDG_CONFIG_HOME"} \
@@ -74,18 +74,28 @@ doctor_check_mise() {
   fi
 }
 
+doctor_check_env_mode() {
+  local file=$1 mode
+  mode=$(os_file_mode "$file")
+  if [ "$mode" = 600 ]; then
+    doctor_ok "$file has mode 600"
+  else
+    doctor_fail "$file has mode $mode, expected 600"
+  fi
+}
+
+# The shared .env, and the .env of each context that has one.
 doctor_check_env_file() {
-  local mode
+  local id
   if [ ! -f "$POVY_ENV_FILE" ]; then
     doctor_fail "$POVY_ENV_FILE is missing; run: povy init"
     return 0
   fi
-  mode=$(os_file_mode "$POVY_ENV_FILE")
-  if [ "$mode" = 600 ]; then
-    doctor_ok "$POVY_ENV_FILE has mode 600"
-  else
-    doctor_fail "$POVY_ENV_FILE has mode $mode, expected 600"
-  fi
+  doctor_check_env_mode "$POVY_ENV_FILE"
+  while IFS= read -r id; do
+    [ -n "$id" ] && [ -f "$POVY_CONFIG_DIR/$id.env" ] || continue
+    doctor_check_env_mode "$POVY_CONFIG_DIR/$id.env"
+  done <<<"$(context_ids)"
 }
 
 doctor_check_blocks() {
@@ -180,49 +190,90 @@ doctor_check_git() {
   fi
 }
 
-# The profile, the mise config that includes it, its secrets, and whether mise
-# bootstrap has applied all of its mise.toml.
+# The profile of the current context, the mise config that includes it, its
+# secrets, and whether mise bootstrap has applied all of its mise.toml.
 doctor_check_profile() {
-  local tmp names missing label
+  local tmp names missing label prefix=""
+  [ -z "$CONTEXT_ID" ] || prefix="context $CONTEXT_ID: "
   if ! (profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH") 2>/dev/null; then
-    doctor_fail "the profile is missing or invalid; run: povy apply"
+    doctor_fail "${prefix}the profile is missing or invalid; run: povy apply"
     return 0
   fi
   profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH"
   [ -z "$CFG_PROFILE" ] ||
-    doctor_ok "profile $CFG_PROFILE${CFG_PROFILE_REF:+, ref $CFG_PROFILE_REF}${CFG_PROFILE_PATH:+, path $CFG_PROFILE_PATH}"
+    doctor_ok "${prefix}profile $CFG_PROFILE${CFG_PROFILE_REF:+, ref $CFG_PROFILE_REF}${CFG_PROFILE_PATH:+, path $CFG_PROFILE_PATH}"
 
-  if tmp=$(mktemp "${TMPDIR:-/tmp}/povy-mise.XXXXXX"); then
+  if [ -n "$CONTEXT_ID" ] && [ -z "$PROFILE_TEAM" ]; then
+    :
+  elif tmp=$(mktemp "${TMPDIR:-/tmp}/povy-mise.XXXXXX"); then
     team_conf_render >"$tmp"
-    label="mise config: $(tilde_path "$POVY_MISE_CONF")"
+    label="${prefix}mise config: $(tilde_path "$CONTEXT_CONF")"
     [ -z "$PROFILE_TEAM" ] || label="$label, which includes team.toml from the profile"
-    doctor_check_generated "$POVY_MISE_CONF" "$tmp" "$label"
+    doctor_check_generated "$CONTEXT_CONF" "$tmp" "$label"
     rm -f "$tmp"
+  fi
+  # Untrusted, or unreadable, the context's config stops the shims below its
+  # directory, which is what an IDE opened there would hit.
+  if [ -n "$CONTEXT_ID" ] && [ -n "$PROFILE_TEAM" ]; then
+    # shellcheck disable=SC2153 # Set with CONTEXT_ID by context_select.
+    if [ -d "$CONTEXT_DIR" ] && doctor_probe bash -lc 'yq --version' "$CONTEXT_DIR" | grep -q version; then
+      doctor_ok "${prefix}the mise shims run in $(tilde_path "$CONTEXT_DIR")"
+    else
+      doctor_fail "${prefix}the mise shims do not run in $(tilde_path "$CONTEXT_DIR"); run: povy apply, or see: mise -C $CONTEXT_DIR config ls"
+    fi
   fi
   if [ -n "$PROFILE_BIN" ]; then
     # shellcheck disable=SC2016 # Expanded by the probed shell.
     case ":$(doctor_probe bash -lc 'printf "%s\n" "$PATH"'):" in
-      *":$PROFILE_BIN:"*) doctor_ok "profile commands on PATH: $(tilde_path "$PROFILE_BIN")" ;;
-      *) doctor_fail "the profile commands in $(tilde_path "$PROFILE_BIN") are not on PATH; run: povy apply" ;;
+      *":$PROFILE_BIN:"*) doctor_ok "${prefix}profile commands on PATH: $(tilde_path "$PROFILE_BIN")" ;;
+      *) doctor_fail "${prefix}the profile commands in $(tilde_path "$PROFILE_BIN") are not on PATH; run: povy apply" ;;
     esac
   fi
   [ -n "$PROFILE_PROJECT" ] || return 0
 
   if ! names=$( (team_secret_names) 2>/dev/null); then
-    doctor_fail "mise cannot read the profile's mise.toml; run: mise bootstrap status -C $POVY_PROFILE_ROOT"
+    doctor_fail "${prefix}mise cannot read the profile's mise.toml; run: mise bootstrap status -C $POVY_PROFILE_ROOT"
     return 0
   fi
   missing=$(team_secrets_missing "$names")
   if [ -n "$missing" ]; then
-    doctor_fail "empty secrets in $POVY_ENV_FILE: $(printf '%s' "$missing" | tr '\n' ' ')"
+    doctor_fail "${prefix}empty secrets in $POVY_ENV_FILE: $(printf '%s' "$missing" | tr '\n' ' ')"
   elif [ -n "$names" ]; then
-    doctor_ok "the secrets the profile needs are set"
+    doctor_ok "${prefix}the secrets the profile needs are set"
   fi
   if team_mise_with_secrets "$names" bootstrap status --missing -C "$POVY_PROFILE_ROOT" >/dev/null 2>&1 </dev/null; then
-    doctor_ok "mise bootstrap: the profile's mise.toml is applied"
+    doctor_ok "${prefix}mise bootstrap: the profile's mise.toml is applied"
   else
-    doctor_fail "the profile's mise.toml is not fully applied; run: povy apply, or see: mise bootstrap status -C $POVY_PROFILE_ROOT"
+    doctor_fail "${prefix}the profile's mise.toml is not fully applied; run: povy apply, or see: mise bootstrap status -C $POVY_PROFILE_ROOT"
   fi
+}
+
+# The default profile and those of the contexts, then what they must not share:
+# the files they write, and the names of their commands. Sets POVY_BINS as apply
+# does, for the check of the file for graphical apps, which lists them on Linux.
+doctor_check_profiles() {
+  local id targets="" bins="" conflicts collisions line
+  for id in "" $(context_ids); do
+    context_select "$id"
+    [ -z "$id" ] || [ -n "$CFG_PROFILE" ] || continue
+    doctor_check_profile
+    if [ -z "$CFG_PROFILE" ] || ! (profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH") 2>/dev/null; then
+      continue
+    fi
+    # A [bootstrap.files] table that povy cannot read is for mise to report.
+    targets="$targets$( { (profile_file_targets) 2>/dev/null || true; } | awk -v owner="$id" '{ print owner "\t" $0 }')"$'\n'
+    [ -z "$PROFILE_BIN" ] || bins="$bins$id"$'\t'"$PROFILE_BIN"$'\n'
+  done
+  context_select ""
+  POVY_BINS=$(printf '%s' "$bins" | cut -f2)
+  conflicts=$(context_conflicts "$targets")
+  while IFS= read -r line; do
+    [ -z "$line" ] || doctor_fail "two profiles write $line"
+  done <<<"$(context_conflicts_text "$conflicts")"
+  collisions=$(context_bin_collisions "$bins")
+  while IFS= read -r line; do
+    [ -z "$line" ] || doctor_warn "command $line"
+  done <<<"$(context_bin_collisions_text "$collisions")"
 }
 
 cmd_doctor() {
@@ -249,7 +300,7 @@ cmd_doctor() {
   else
     doctor_ok "$POVY_CONFIG_FILE is valid"
     config_load
-    doctor_check_profile
+    doctor_check_profiles
     doctor_check_git
   fi
 

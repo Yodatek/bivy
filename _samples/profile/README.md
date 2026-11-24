@@ -23,6 +23,8 @@ section. Things to know:
   those that `[_.povy.windows]` lists, with only `secret()` and `vars` in templates.
 - A file takes one block across every mise config: a profile's `~/.zshrc` block
   replaces one that the machine's own config declares for that file.
+- A profile can also serve a context, below a directory: see Contexts in the povy
+  README. Its blocks in rc files still run in every shell.
 
 ## Try it
 

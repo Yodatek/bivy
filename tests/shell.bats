@@ -165,7 +165,7 @@ env_sh_path() {
 
 @test "env.sh puts the profile's commands between the shims and ~/.local/bin" {
   local shell_cmd s="$POVY_SHIMS_DIR" p="$HOME/.local/state/povy/profile/bin" b="$POVY_LOCAL_BIN"
-  PROFILE_BIN=$p
+  POVY_BINS=$p
   shell_write_env
   grep -qxF '__povy_path_front "$HOME/.local/state/povy/profile/bin"' "$POVY_ENV_SH"
   for shell_cmd in sh bash zsh dash; do

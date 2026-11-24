@@ -112,8 +112,26 @@ banner_applied() {
   awk -F'\t' -v kind="$1" '$1 == kind { print $2 }' "$POVY_APPLIED"
 }
 
+# The deepest context whose directory holds the current one.
+banner_context() {
+  [ -f "$POVY_APPLIED" ] || return 0
+  awk -F'\t' -v pwd="${PWD%/}/" -v home="$HOME" '
+    $1 == "context" {
+      dir = $3
+      if (substr(dir, 1, 2) == "~/") dir = home substr(dir, 2)
+      if (index(pwd, dir) == 1 && length(dir) > best) { best = length(dir); id = $2 }
+    }
+    END { if (id != "") print id }' "$POVY_APPLIED"
+}
+
+# The context of the current directory, or else the name of the default profile.
 banner_profile() {
   local profile
+  profile=$(banner_context)
+  if [ -n "$profile" ]; then
+    printf '%s' "$profile"
+    return 0
+  fi
   profile=$(banner_applied profile)
   profile=${profile%/}
   profile=${profile%.git}
@@ -216,10 +234,11 @@ banner_compact_metrics() {
 }
 
 banner_compact() {
-  local profile parts="" name first others
+  local profile kind=profile parts="" name first others
   profile=$(banner_profile)
+  [ -z "$(banner_context)" ] || kind=context
   printf '%s%s povy%s %s %s@%s' "$B_BOLD" "$B_ICON" "$B_OFF" "$B_SEP" "${USER:-$(id -un)}" "${HOSTNAME%%.*}"
-  [ -z "$profile" ] || printf ' %s profile %s' "$B_SEP" "$profile"
+  [ -z "$profile" ] || printf ' %s %s %s' "$B_SEP" "$kind" "$profile"
   printf ' %s %s\n' "$B_SEP" "$(date '+%a %d %b %H:%M')"
   banner_compact_metrics
   while IFS=$'\t' read -r name first others; do

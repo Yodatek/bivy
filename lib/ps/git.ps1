@@ -46,10 +46,20 @@ function Write-PovyGitIdentity([string]$File, [string]$Name, [string]$Email) {
 
 # Renders every generated file into Dir. Include paths are relative, and Git resolves
 # them from the including file.
+# The identities by directory, those of [[identities]] and those of the contexts,
+# parents first: Git applies every includeIf that matches, in order, so the deepest
+# directory wins.
+function Get-PovyGitIdentity {
+    $all = @($script:Cfg.Identities) + @($script:Cfg.Contexts | Where-Object { $_.Email } | ForEach-Object {
+            [pscustomobject]@{ Dir = $_.Dir; Name = $_.Name; Email = $_.Email }
+        })
+    return @($all | Sort-Object -Property { $_.Dir.Length } -Stable)
+}
+
 function Write-PovyGitConfig([string]$Dir) {
     if (-not (Write-PovyGitIdentity (Join-Path $Dir 'config') $script:Cfg.Name $script:Cfg.Email)) { return $false }
     $index = 0
-    foreach ($identity in $script:Cfg.Identities) {
+    foreach ($identity in Get-PovyGitIdentity) {
         $index++
         if (-not (Write-PovyGitIdentity (Join-Path $Dir "identity-$index") $identity.Name $identity.Email)) { return $false }
         $key = "includeIf.gitdir/i:$($identity.Dir).path"

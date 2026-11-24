@@ -28,6 +28,7 @@ profile_clone() {
     die "could not clone the profile: $url${ref:+, ref $ref}"
   fi
   rm -rf "$POVY_PROFILE_DIR"
+  mkdir -p "${POVY_PROFILE_DIR%/*}" || die "cannot write in ${POVY_PROFILE_DIR%/*}"
   mv "$tmp/profile" "$POVY_PROFILE_DIR"
   rm -rf "$tmp"
   info "cloned profile $url${ref:+, ref $ref}"

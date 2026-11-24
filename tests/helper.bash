@@ -74,6 +74,8 @@ load_libs() {
   . "$POVY_ROOT/lib/git.sh"
   # shellcheck source=lib/team.sh
   . "$POVY_ROOT/lib/team.sh"
+  # shellcheck source=lib/context.sh
+  . "$POVY_ROOT/lib/context.sh"
   povy_init_paths
   povy_load_os
   povy_ensure_dirs
@@ -160,7 +162,8 @@ home_fingerprint() {
     cd "$HOME" &&
       find . -type f -not -path './.local/share/mise/*' -not -path './.local/state/mise/*' \
         -not -path './.cache/*' -not -path './Library/Caches/*' \
-        -not -path './.local/state/povy/profile/.git/*' -print | LC_ALL=C sort |
+        -not -path './.local/state/povy/profile/.git/*' \
+        -not -path './.local/state/povy/contexts/*/profile/.git/*' -print | LC_ALL=C sort |
       while IFS= read -r f; do
         cksum "$f"
       done

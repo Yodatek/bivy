@@ -9,6 +9,10 @@ what mise leaves out: it keeps your real `HOME`, and puts the tools on the `PATH
 every shell and graphical app, those started without mise on their `PATH` included,
 so IDEs and coding agents see the same tools, SSH keys and config files you do.
 
+One machine can serve several teams: a [context](#contexts) applies its own profile
+and Git identity below a directory, such as `~/work/acme/`, and the IDEs and agents
+opened there get it too.
+
 <p align="center">
   <img src="docs/banner.png" width="720"
     alt="The povy banner: the POVY logo in a frame, gauges for CPU, memory and disk, and the tools with their versions">
@@ -37,7 +41,7 @@ irm https://raw.githubusercontent.com/Yodatek/povy/main/bootstrap.ps1 | iex
 This bootstrap installs Git and mise with winget if they are missing, clones the engine
 into `%LOCALAPPDATA%\povy\engine` and adds the `povy` command to your user `PATH`. The
 PowerShell engine reads the same `config.toml` and profiles, and offers `povy init`,
-`apply`, `doctor` and `version`. What changes on Windows:
+`apply`, `doctor`, `status` and `version`. What changes on Windows:
 
 - The mise shims, the profile's commands and `~/.local/bin` go on the user `PATH`,
   which every new process gets, graphical apps included, and so does mise itself when
@@ -59,6 +63,7 @@ PowerShell engine reads the same `config.toml` and profiles, and offers `povy in
 | `povy apply` | Updates the profile, lets `mise bootstrap` apply it, puts the tools on the `PATH` of shells and graphical apps, and sets the Git identity. Running it again changes nothing. |
 | `povy doctor` | Checks the real state and changes nothing, including what a shell started by an IDE sees. Exits 0 if all is well, 1 otherwise. |
 | `povy banner` | Shows the tools and the CPU, memory and disk load. |
+| `povy status [<dir>]` | Shows the contexts that apply in a directory, the current one by default, the deepest first. |
 | `povy version` | Shows the release povy is on, such as `0.2.0`, or `0.2.0-3-gabc1234` three commits after it. |
 
 ## Three levels
@@ -77,11 +82,14 @@ profile = "git@example.org:team/workstation.git"
 profile_ref = "v3"    # optional: a branch, a tag or a commit, else the default branch
 profile_path = "dev"  # optional: the directory of the repository that holds the profile
 
-[[identities]]        # optional, another Git identity under a directory
+[contexts.oss]        # optional: a Git identity, a profile, or both, below a directory
 dir = "~/oss/"
 email = "ada@users.noreply.github.com"
 # name = "Ada"        # defaults to the name above
 ```
+
+[Contexts](#contexts) explains them. The `[[identities]]` entries of povy 0.2 still
+work: each one is a context with only an email.
 
 A branch follows its remote at each `apply`, a tag is looked up again, and a commit
 stays where it is: pin a tag or a commit to choose when a machine takes the team's
@@ -121,6 +129,65 @@ its executable scripts.
 A profile can install tools and packages, write files in your home directory and run
 commands in your shells, so only use one you trust.
 
+## Contexts
+
+A context applies a profile, a Git identity, or both, below a directory. Contexts let
+one machine serve several teams, each with its own tools, variables, secrets and
+identity, in the real home directory:
+
+```toml
+[contexts.acme]
+dir = "~/work/acme/"
+email = "ada@acme.example"
+
+[contexts.product]            # inside acme: the deepest context wins
+dir = "~/work/acme/product/"
+profile = "git@git.acme.example:product/workstation.git"
+profile_ref = "main"
+
+[contexts.solo]
+dir = "~/solo/"
+email = "ada@users.noreply.github.com"
+```
+
+For a context with a profile, `povy apply` clones it and writes
+`<dir>/.config/mise/conf.d/povy.toml`, which includes its `team.toml`, then has mise
+trust that file. mise applies the team's tools and `[env]` to every directory below,
+nested contexts adding up and the deepest winning, and so do the shims that IDEs and
+agents run. `mise bootstrap` applies the profile's `mise.toml` as for the default
+profile, the profile's commands go on every `PATH`, and the context's identity
+applies to the repositories below its directory. `povy status` shows which contexts
+apply where.
+
+The secrets of a context come from `~/.config/povy/<id>.env`, then from the shared
+`.env`, and `apply` adds those it lacks to `<id>.env`. A context removed from
+`config.toml` takes its mise config and its clone along at the next `apply`; its
+`.env` stays.
+
+A profile meant for a context follows a few rules:
+
+- Files are machine-wide. `apply` stops when two profiles write the same file, the
+  default profile included, unless each writes a block of its own `id` into it.
+  Write a context's own files to its own paths, and point the tools at them from
+  `[env]`:
+
+  | Tool | Variable |
+  | --- | --- |
+  | kubectl, Helm | `KUBECONFIG` |
+  | npm | `NPM_CONFIG_USERCONFIG` |
+  | Maven 3.9 | `MAVEN_ARGS`, such as `--settings=…` |
+  | Docker | `DOCKER_CONFIG` |
+  | GitHub CLI | `GH_CONFIG_DIR` |
+  | Ansible | `ANSIBLE_CONFIG` |
+  | Starship | `STARSHIP_CONFIG` |
+
+- Blocks in rc files run in every shell, so they only call commands that exist
+  everywhere, such as the tools of your own mise config.
+- In a shell without `mise activate`, only the tools that mise runs through its shims
+  get the context's `[env]`: install with mise the tools that read those variables.
+- When two profiles have a command of the same name, the first in `config.toml`
+  wins, and `apply` and `doctor` say so.
+
 ## Banner
 
 Each new terminal shows the banner above: who and where, gauges for the CPU, memory and
@@ -142,6 +209,9 @@ in the terminals of VS Code and its forks, Zed, JetBrains IDEs, Emacs and Claude
 
 - `~/.config/mise/conf.d/povy.toml` is generated: it includes the profile's `team.toml`.
   Your `~/.config/mise/config.toml` is not touched.
+- For each context with a profile, `<dir>/.config/mise/conf.d/povy.toml` is generated,
+  the clone lives in `~/.local/state/povy/contexts/<id>/`, and the secrets in
+  `~/.config/povy/<id>.env`.
 - `mise bootstrap` applies the profile's `mise.toml`, as its documentation describes.
 - Marked blocks in the startup files source `~/.config/povy/env.sh`, which puts the
   shims, the profile's commands and `~/.local/bin` on PATH by absolute path, and
@@ -165,9 +235,10 @@ in the terminals of VS Code and its forks, Zed, JetBrains IDEs, Emacs and Claude
 
 ## Git identity
 
-`name` and `email` become your Git identity. Each `[[identities]]` entry replaces it in
-the repositories under its directory, through `includeIf "gitdir:..."`. The directory
-starts with `~/` or `/`.
+`name` and `email` become your Git identity. Each context with an `email`, and each
+`[[identities]]` entry, replaces it in the repositories under its directory, through
+`includeIf "gitdir:..."`; in nested directories the deepest wins. The directory starts
+with `~/` or `/`.
 
 povy includes its generated config from the top of your global Git config, so what you
 wrote below keeps precedence. A `[user]` there wins over every identity povy sets, even
