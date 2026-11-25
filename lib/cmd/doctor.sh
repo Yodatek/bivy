@@ -193,8 +193,11 @@ doctor_check_git() {
 # The profile of the current context, the mise config that includes it, its
 # secrets, and whether mise bootstrap has applied all of its mise.toml.
 doctor_check_profile() {
-  local tmp names missing label prefix=""
-  [ -z "$CONTEXT_ID" ] || prefix="context $CONTEXT_ID: "
+  local tmp names missing label prefix="" vars=""
+  if [ -n "$CONTEXT_ID" ]; then
+    prefix="context $CONTEXT_ID: "
+    vars=$(context_env "$CONTEXT_ID")
+  fi
   if ! (profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH") 2>/dev/null; then
     doctor_fail "${prefix}the profile is missing or invalid; run: povy apply"
     return 0
@@ -203,18 +206,19 @@ doctor_check_profile() {
   [ -z "$CFG_PROFILE" ] ||
     doctor_ok "${prefix}profile $CFG_PROFILE${CFG_PROFILE_REF:+, ref $CFG_PROFILE_REF}${CFG_PROFILE_PATH:+, path $CFG_PROFILE_PATH}"
 
-  if [ -n "$CONTEXT_ID" ] && [ -z "$PROFILE_TEAM" ]; then
+  if [ -n "$CONTEXT_ID" ] && [ -z "$PROFILE_TEAM$vars" ]; then
     :
   elif tmp=$(mktemp "${TMPDIR:-/tmp}/povy-mise.XXXXXX"); then
     team_conf_render >"$tmp"
     label="${prefix}mise config: $(tilde_path "$CONTEXT_CONF")"
     [ -z "$PROFILE_TEAM" ] || label="$label, which includes team.toml from the profile"
+    [ -z "$vars" ] || label="$label${PROFILE_TEAM:+,} with env $(printf '%s\n' "$vars" | cut -f1 | paste -sd ' ' -)"
     doctor_check_generated "$CONTEXT_CONF" "$tmp" "$label"
     rm -f "$tmp"
   fi
   # Untrusted, or unreadable, the context's config stops the shims below its
   # directory, which is what an IDE opened there would hit.
-  if [ -n "$CONTEXT_ID" ] && [ -n "$PROFILE_TEAM" ]; then
+  if [ -n "$CONTEXT_ID" ] && [ -n "$PROFILE_TEAM$vars" ]; then
     # shellcheck disable=SC2153 # Set with CONTEXT_ID by context_select.
     if [ -d "$CONTEXT_DIR" ] && doctor_probe bash -lc 'yq --version' "$CONTEXT_DIR" | grep -q version; then
       doctor_ok "${prefix}the mise shims run in $(tilde_path "$CONTEXT_DIR")"
@@ -255,7 +259,7 @@ doctor_check_profiles() {
   local id targets="" bins="" conflicts collisions line
   for id in "" $(context_ids); do
     context_select "$id"
-    [ -z "$id" ] || [ -n "$CFG_PROFILE" ] || continue
+    [ -z "$id" ] || [ -n "$CFG_PROFILE" ] || [ -n "$(context_env "$id")" ] || continue
     doctor_check_profile
     if [ -z "$CFG_PROFILE" ] || ! (profile_load "$CFG_PROFILE" "$CFG_PROFILE_PATH") 2>/dev/null; then
       continue

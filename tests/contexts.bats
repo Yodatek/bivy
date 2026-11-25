@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
-# Contexts: a Git identity, a profile, or both, below a directory, which mise and
-# Git apply there, for IDEs and agents too.
+# Contexts: a Git identity, a profile, variables, or several, below a directory,
+# which mise and Git apply there, for IDEs and agents too.
 
 load helper
 
@@ -77,6 +77,45 @@ CTX = "product"' ""
   [ "$(ide_env "$HOME/work/org/product/app" CTX)" = product ]
   [ "$(ide_env "$HOME/work/org/product/app" ORG)" = org ]
   [ "$(ide_env "$HOME/work/org/other" CTX)" = org ]
+}
+
+@test "a context's env applies below its directory, over its team.toml, ~/ expanded" {
+  make_mise_profile "$BATS_TEST_TMPDIR/a" '[env]
+CTX = "team"
+ONLY_TEAM = "team"' ""
+  # shellcheck disable=SC2016 # A template for mise to render.
+  write_contexts "$(context a '~/work/a/' profile="$BATS_TEST_TMPDIR/a")" \
+    'env = { CTX = "machine", CONF = "~/.conf-a", TPL = "{{env.HOME}}/tpl" }' \
+    "$(context b '~/work/b/')" '[contexts.b.env]' 'CONF = "~/.conf-b"'
+  povy init --config "$CONFIG"
+  apply_ok
+  [ "$(ide_env "$HOME/work/a/app" CTX)" = machine ]
+  [ "$(ide_env "$HOME/work/a/app" ONLY_TEAM)" = team ]
+  [ "$(ide_env "$HOME/work/a/app" CONF)" = "$HOME/.conf-a" ]
+  [ "$(ide_env "$HOME/work/a/app" TPL)" = "$HOME/tpl" ]
+  # A context with only env has a mise config, and no clone.
+  [ "$(ide_env "$HOME/work/b/app" CONF)" = "$HOME/.conf-b" ]
+  [ ! -e "$STATE/contexts/b" ]
+  [ "$(ide_env "$HOME/work" CONF)" = none ]
+
+  run povy status "$HOME/work/b/app"
+  echo "$output"
+  [[ "${lines[1]}" == *"b"*"~/work/b/: env CONF" ]] || false
+  run povy doctor
+  echo "$output"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[ok]   context b: mise config: ~/work/b/.config/mise/conf.d/povy.toml with env CONF"* ]] || false
+  [[ "$output" == *"[ok]   context b: the mise shims run in ~/work/b"* ]] || false
+  apply_ok
+  [[ "$output" == *"0 written"* ]] || false
+
+  # Without its env, the context needs no mise config.
+  write_contexts "$(context a '~/work/a/' profile="$BATS_TEST_TMPDIR/a")" \
+    "$(context b '~/work/b/' email=b@example.org)"
+  povy init --config "$CONFIG"
+  apply_ok
+  [ ! -e "$HOME/work/b/.config" ]
+  [ "$(ide_env "$HOME/work/a/app" CTX)" = team ]
 }
 
 @test "a context sets the Git identity below its directory, the deepest winning" {
@@ -369,6 +408,16 @@ profile_ref = "main"' '[contexts.a]
 dir = "~/w/"
 email = "a@example.org"
 colour = "red"' '[contexts.a]
+dir = "~/w/"
+env = "X=1"' '[contexts.a]
+dir = "~/w/"
+env = { "BAD-NAME" = "x" }' '[contexts.a]
+dir = "~/w/"
+env = { PATH = "/x" }' '[contexts.a]
+dir = "~/w/"
+env = { N = 1 }' '[contexts.a]
+dir = "~/w/"
+env = {}' '[contexts.a]
 dir = "~/w/"
 email = "a@example.org"
 [contexts.b]

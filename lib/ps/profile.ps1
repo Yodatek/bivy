@@ -192,7 +192,7 @@ function Import-PovyProject([string]$File) {
     foreach ($name in $secrets.Keys) {
         $value = $secrets[$name]
         $envName = if ($value -is [string]) { $value } elseif ($value -is [System.Collections.IDictionary]) { [string]$value['env'] } else { '' }
-        if ($envName -cnotmatch '^[A-Za-z_][A-Za-z0-9_]*$') { Stop-Povy "${File}: bootstrap.secrets.$name needs an environment variable" }
+        if ($envName -cnotmatch $script:PovyEnvNameRe) { Stop-Povy "${File}: bootstrap.secrets.$name needs an environment variable" }
         $prof.Secrets[$name] = $envName
     }
 

@@ -11,10 +11,13 @@ status_profile_name() {
   printf '%s' "${name##*[/:]}"
 }
 
+# The names of a context's variables only: their values are in config.toml, and
+# mise env shows them as a directory gets them.
 status_line() {
-  local label=$1 where=$2 email=$3 profile=$4 ref=$5 what=""
+  local label=$1 where=$2 email=$3 profile=$4 ref=$5 vars=${6:-} what=""
   [ -z "$profile" ] || what="profile $(status_profile_name "$profile")${ref:+ at $ref}"
   [ -z "$email" ] || what="$what${what:+, }Git identity $email"
+  [ -z "$vars" ] || what="$what${what:+, }env $vars"
   printf '  %-12s %s: %s\n' "$label" "$where" "${what:-nothing}"
 }
 
@@ -30,7 +33,8 @@ cmd_status() {
     case "$kind" in
       context)
         status_line "$key" "$(context_field "$key" 2)" "$(context_field "$key" 4)" \
-          "$(context_field "$key" 5)" "$(context_field "$key" 6)"
+          "$(context_field "$key" 5)" "$(context_field "$key" 6)" \
+          "$(context_env "$key" | cut -f1 | paste -sd ' ' -)"
         ;;
       identity) status_line '(identity)' "$key" "$email" "" "" ;;
     esac

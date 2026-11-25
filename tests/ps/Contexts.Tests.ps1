@@ -235,6 +235,50 @@ Describe 'a context that goes' {
     }
 }
 
+Describe 'the env of a context' {
+    BeforeAll {
+        $sandbox = New-PovySandbox
+        $repo = Join-Path $sandbox.Root 'a'
+        New-PovyCustomProfile $repo -Team "[env]`nCTX = `"team`"`nONLY_TEAM = `"team`""
+        $config = Join-Path $sandbox.Root 'config.toml'
+        Write-PovyContextConfig $config @(
+            ((Get-PovyContextTable 'a' '~/work/a/' @{ profile = $repo }) + "`nenv = { CTX = `"machine`", CONF = `"~/.conf-a`" }"),
+            # Only env: no Git identity and no profile.
+            "[contexts.b]`ndir = `"~/work/b/`"`n`n[contexts.b.env]`nCONF = `"~/.conf-b`""
+        )
+        $apply = Invoke-PovyContextApply $sandbox $config
+        if ($apply.Code -ne 0) { throw "povy apply failed: $($apply.Output)" }
+    }
+    AfterAll {
+        Remove-PovySandbox $sandbox
+    }
+
+    It 'applies below the directory, over the team.toml, with ~/ expanded' {
+        $a = Get-PovyMiseEnv (Join-Path $sandbox.Home 'work/a/app')
+        $a['CTX'] | Should -BeExactly 'machine'
+        $a['ONLY_TEAM'] | Should -BeExactly 'team'
+        $a['CONF'] | Should -BeExactly ([IO.Path]::GetFullPath((Join-Path $sandbox.Home '.conf-a')))
+        (Get-PovyMiseEnv (Join-Path $sandbox.Home 'work/b/app'))['CONF'] | Should -BeExactly ([IO.Path]::GetFullPath((Join-Path $sandbox.Home '.conf-b')))
+        (Get-PovyMiseEnv (Join-Path $sandbox.Home 'work')).ContainsKey('CONF') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $sandbox.State 'contexts/b') | Should -BeFalse
+    }
+
+    It 'shows the names of the variables with status' {
+        $status = Invoke-PovyCli status (Join-Path $sandbox.Home 'work/b')
+        $status.Code | Should -Be 0 -Because $status.Output
+        @($status.Output -split "`n")[1] | Should -Match '^\s+b\s+~/work/b/: env CONF$'
+    }
+
+    It 'passes doctor, and writes nothing on a second apply' {
+        $doctor = Invoke-PovyCli doctor
+        $doctor.Code | Should -Be 0 -Because $doctor.Output
+        $doctor.Output | Should -Match 'context b: mise config: .* with env CONF'
+        $again = Invoke-PovyCli apply
+        $again.Code | Should -Be 0 -Because $again.Output
+        $again.Output | Should -Match 'Applied: 0 written'
+    }
+}
+
 Describe 'a default profile moved to a context' {
     BeforeAll {
         $sandbox = New-PovySandbox
@@ -282,6 +326,11 @@ Describe 'contexts that config.toml refuses' {
         @{ Name = 'an unknown key'; Body = "[contexts.a]`ndir = `"~/w/`"`nemail = `"a@example.org`"`ncolour = `"red`"" }
         @{ Name = 'two contexts on one directory'; Body = "[contexts.a]`ndir = `"~/w/`"`nemail = `"a@example.org`"`n[contexts.b]`ndir = `"~/w`"`nemail = `"b@example.org`"" }
         @{ Name = 'contexts that are not tables'; Body = 'contexts = 1' }
+        @{ Name = 'an env that is not a table'; Body = "[contexts.a]`ndir = `"~/w/`"`nenv = `"X=1`"" }
+        @{ Name = 'an invalid variable name'; Body = "[contexts.a]`ndir = `"~/w/`"`nenv = { `"BAD-NAME`" = `"x`" }" }
+        @{ Name = 'PATH in env'; Body = "[contexts.a]`ndir = `"~/w/`"`nenv = { PATH = `"/x`" }" }
+        @{ Name = 'a variable that is not a string'; Body = "[contexts.a]`ndir = `"~/w/`"`nenv = { N = 1 }" }
+        @{ Name = 'an empty env alone'; Body = "[contexts.a]`ndir = `"~/w/`"`nenv = {}" }
     ) {
         Write-PovyContextConfig $config @($Body)
         $init = Invoke-PovyCli init --config $config

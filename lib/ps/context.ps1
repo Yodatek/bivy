@@ -1,9 +1,9 @@
-# Contexts, as in the bash engine: a Git identity, a profile, or both, below a
-# directory. For a context with a profile, povy writes
-# <dir>/.config/mise/conf.d/povy.toml, which includes the profile's team.toml: mise
-# applies it to every directory below, to the tools that the shims start too, and
-# the deepest context wins. The top-level profile is the default context, which
-# mise's global conf.d applies everywhere.
+# Contexts, as in the bash engine: a Git identity, a profile, variables, or several,
+# below a directory. For a context with a profile or variables, povy writes
+# <dir>/.config/mise/conf.d/povy.toml, which includes the profile's team.toml and
+# sets the variables: mise applies it to every directory below, to the tools that
+# the shims start too, and the deepest context wins. The top-level profile is the
+# default context, which mise's global conf.d applies everywhere.
 #
 # The functions written for one profile act on the current context, which
 # Select-PovyContext sets: its clone, its .env files, its conf.d file.
@@ -33,6 +33,7 @@ function Select-PovyContext([string]$Id) {
     if (-not $Id) {
         $script:Ctx = [pscustomobject]@{
             Id = ''; Dir = ''; Profile = $script:Cfg.Profile; ProfileRef = $script:Cfg.ProfileRef; ProfilePath = $script:Cfg.ProfilePath
+            Env = [ordered]@{}
         }
         $script:PovyContextConf = $script:PovyMiseConf
         $script:PovyProfileDir = Join-Path $script:PovyStateDir 'profile'
@@ -43,6 +44,7 @@ function Select-PovyContext([string]$Id) {
         $dir = Get-PovyContextPath $context.Dir
         $script:Ctx = [pscustomobject]@{
             Id = $Id; Dir = $dir; Profile = $context.Profile; ProfileRef = $context.ProfileRef; ProfilePath = $context.ProfilePath
+            Env = $context.Env
         }
         $script:PovyContextConf = [System.IO.Path]::GetFullPath((Join-Path $dir '.config/mise/conf.d/povy.toml'))
         $script:PovyProfileDir = [System.IO.Path]::GetFullPath((Join-Path $script:PovyStateDir "contexts/$Id/profile"))
@@ -60,10 +62,10 @@ function Get-PovyContextId {
 }
 
 # Writes the conf.d file of the current context and has mise trust it, as mise
-# applies a project's config only once trusted. A profile without team.toml needs no
-# file, and a file left from before goes.
+# applies a project's config only once trusted. A context with neither a team.toml
+# nor variables needs no file, and a file left from before goes.
 function Set-PovyContextConf {
-    if (-not $script:Prof.Team) {
+    if (-not $script:Prof.Team -and $script:Ctx.Env.Count -eq 0) {
         Remove-PovyContextConf $script:PovyContextConf
         return
     }
@@ -209,10 +211,11 @@ function Get-PovyBinCollision($Bins) {
 # directory, the context, which Git applies last, comes first.
 function Get-PovyContextMatch([string]$Dir) {
     $entries = @(foreach ($identity in $script:Cfg.Identities) {
-            [pscustomobject]@{ Label = '(identity)'; Dir = $identity.Dir; Email = $identity.Email; Profile = ''; ProfileRef = '' }
+            [pscustomobject]@{ Label = '(identity)'; Dir = $identity.Dir; Email = $identity.Email; Profile = ''; ProfileRef = ''; Env = [ordered]@{} }
         }) + @(foreach ($context in $script:Cfg.Contexts) {
             [pscustomobject]@{
                 Label = $context.Id; Dir = $context.Dir; Email = $context.Email; Profile = $context.Profile; ProfileRef = $context.ProfileRef
+                Env = $context.Env
             }
         })
     $order = 0

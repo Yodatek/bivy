@@ -5,7 +5,9 @@
 $script:PovyConfigHeader = '# Machine configuration for povy. Never versioned.'
 $script:PovyRefRe = '^[A-Za-z0-9_][A-Za-z0-9._/-]*$'
 $script:PovyContextIdRe = '^[a-z0-9][a-z0-9-]*$'
-$script:PovyContextKeys = @('dir', 'name', 'email', 'profile', 'profile_ref', 'profile_path')
+$script:PovyContextKeys = @('dir', 'name', 'email', 'profile', 'profile_ref', 'profile_path', 'env')
+# An environment variable: a context's, or the one a profile's secret is read from.
+$script:PovyEnvNameRe = '^[A-Za-z_][A-Za-z0-9_]*$'
 $script:Cfg = $null
 # The shared .env, which a context reads after its own <id>.env.
 $script:PovyEnvFallback = $null
@@ -102,8 +104,32 @@ function ConvertTo-PovyIdentity($Data, [string]$File, [string]$DefaultName) {
     return , $identities.ToArray()
 }
 
+# The env table of a context, as an ordered dictionary: the variables that povy
+# writes into the context's mise config. A value is a string without control
+# characters, which mise reads as written but for a leading ~/: it renders its
+# templates, such as {{env.HOME}}. PATH is the business of the profiles' bin and of
+# mise's own config.
+function ConvertTo-PovyContextEnv($Entry, [string]$File, [string]$Label) {
+    $vars = [ordered]@{}
+    if (-not $Entry.Contains('env') -or $null -eq $Entry['env']) { return , $vars }
+    $table = $Entry['env']
+    if ($table -isnot [System.Collections.IDictionary]) {
+        Stop-Povy "${File}: $Label.env must be a table of variables, such as env = { NAME = `"value`" }"
+    }
+    foreach ($name in @($table.Keys)) {
+        if ($name -cnotmatch $script:PovyEnvNameRe -or $name -ceq '_') { Stop-Povy "${File}: $Label.env: invalid variable name: $name" }
+        if ($name -ieq 'PATH') { Stop-Povy "${File}: $Label.env: PATH cannot be set here" }
+        $value = $table[$name]
+        if ($value -isnot [string]) { Stop-Povy "${File}: $Label.env.$name must be a string" }
+        if (Test-PovyControlChar $value) { Stop-Povy "${File}: $Label.env.$name contains control characters" }
+        $vars[$name] = $value
+    }
+    return , $vars
+}
+
 # The [contexts.<id>] tables, in the order of the file, checked with the same rules
-# as the bash engine: a Git identity, a profile, or both, below a directory.
+# as the bash engine: a Git identity, a profile, variables, or several, below a
+# directory.
 function ConvertTo-PovyContext($Data, [string]$File, [string]$DefaultName) {
     $contexts = [System.Collections.Generic.List[object]]::new()
     $table = Get-PovyTomlTable $Data 'contexts' $File '[contexts.<id>]'
@@ -133,7 +159,8 @@ function ConvertTo-PovyContext($Data, [string]$File, [string]$DefaultName) {
         $url = Get-PovyTomlString $entry 'profile' $File
         $ref = Get-PovyTomlString $entry 'profile_ref' $File
         $path = (Get-PovyTomlString $entry 'profile_path' $File).TrimEnd('/')
-        if (-not $email -and -not $url) { Stop-Povy "${File}: ${label}: give it an email, a profile, or both" }
+        $vars = ConvertTo-PovyContextEnv $entry $File $label
+        if (-not $email -and -not $url -and $vars.Count -eq 0) { Stop-Povy "${File}: ${label}: give it an email, a profile or env" }
         if ($email) {
             if (-not $name) { $name = $DefaultName }
             if (-not (Test-PovyName $name)) { Stop-Povy "${File}: ${label}: invalid name" }
@@ -152,7 +179,7 @@ function ConvertTo-PovyContext($Data, [string]$File, [string]$DefaultName) {
             if (-not (Test-PovyRelativePath $path)) { Stop-Povy "${File}: ${label}: invalid profile_path: $path" }
         }
         $contexts.Add([pscustomobject]@{
-                Id = $id; Dir = $dir; Name = $name; Email = $email; Profile = $url; ProfileRef = $ref; ProfilePath = $path
+                Id = $id; Dir = $dir; Name = $name; Email = $email; Profile = $url; ProfileRef = $ref; ProfilePath = $path; Env = $vars
             })
     }
     return , $contexts.ToArray()

@@ -269,7 +269,8 @@ function Test-PovyDoctorProfile {
         Write-PovyDoctorOk "${prefix}profile $($script:Ctx.Profile)$detail"
     }
     $conf = $script:PovyContextConf
-    if (-not $script:Ctx.Id -or $script:Prof.Team) {
+    $hasEnv = $script:Ctx.Env.Count -gt 0
+    if (-not $script:Ctx.Id -or $script:Prof.Team -or $hasEnv) {
         $text = if (Test-Path -LiteralPath $conf) { [System.IO.File]::ReadAllText($conf) } else { $null }
         if ($null -eq $text) {
             Write-PovyDoctorFailure "${prefix}$conf is missing; run: povy apply"
@@ -277,12 +278,13 @@ function Test-PovyDoctorProfile {
             Write-PovyDoctorFailure "${prefix}$conf is outdated; run: povy apply"
         } else {
             $suffix = if ($script:Prof.Team) { ', which includes team.toml from the profile' } else { '' }
+            if ($hasEnv) { $suffix += $(if ($script:Prof.Team) { ',' } else { '' }) + ' with env ' + (@($script:Ctx.Env.Keys) -join ' ') }
             Write-PovyDoctorOk "${prefix}mise config: $conf$suffix"
         }
     }
     # Untrusted, or unreadable, the context's config stops the shims below its
     # directory, which is what an IDE opened there would hit.
-    if ($script:Ctx.Id -and $script:Prof.Team) {
+    if ($script:Ctx.Id -and ($script:Prof.Team -or $hasEnv)) {
         $where = Format-PovyPath $script:Ctx.Dir
         $null = Invoke-PovyMise -C $script:Ctx.Dir ls --current 2>$null
         if ($LASTEXITCODE -eq 0) {
@@ -336,7 +338,7 @@ function Test-PovyDoctorContext {
     $bins = [System.Collections.Generic.List[object]]::new()
     foreach ($id in Get-PovyContextId) {
         Select-PovyContext $id
-        if ($id -and -not $script:Ctx.Profile) { continue }
+        if ($id -and -not $script:Ctx.Profile -and $script:Ctx.Env.Count -eq 0) { continue }
         Test-PovyDoctorProfile
         if (-not $script:Ctx.Profile) { continue }
         try {
@@ -464,7 +466,9 @@ function Invoke-PovyDoctor {
 }
 
 # One line of povy status: what a context, or the default, sets.
-function Format-PovyStatusLine([string]$Label, [string]$Where, [string]$Email, [string]$Url, [string]$Ref) {
+# The names of a context's variables only: their values are in config.toml, and
+# mise env shows them as a directory gets them.
+function Format-PovyStatusLine([string]$Label, [string]$Where, [string]$Email, [string]$Url, [string]$Ref, [string]$Vars = '') {
     $what = [System.Collections.Generic.List[string]]::new()
     if ($Url) {
         $name = $Url.TrimEnd('/')
@@ -473,6 +477,7 @@ function Format-PovyStatusLine([string]$Label, [string]$Where, [string]$Email, [
         $what.Add("profile $name" + $(if ($Ref) { " at $Ref" } else { '' }))
     }
     if ($Email) { $what.Add("Git identity $Email") }
+    if ($Vars) { $what.Add("env $Vars") }
     $text = if ($what.Count -gt 0) { $what -join ', ' } else { 'nothing' }
     return ('  {0,-12} {1}: {2}' -f $Label, $Where, $text)
 }
@@ -493,7 +498,7 @@ function Invoke-PovyStatus([string[]]$Arguments) {
     $dir = $resolved.ProviderPath.TrimEnd('\', '/')
     Write-Output "$(Format-PovyPath $dir), the first that sets something wins:"
     foreach ($entry in Get-PovyContextMatch $dir) {
-        Write-Output (Format-PovyStatusLine $entry.Label $entry.Dir $entry.Email $entry.Profile $entry.ProfileRef)
+        Write-Output (Format-PovyStatusLine $entry.Label $entry.Dir $entry.Email $entry.Profile $entry.ProfileRef (@($entry.Env.Keys) -join ' '))
     }
     Write-Output (Format-PovyStatusLine '(default)' 'every directory' $script:Cfg.Email $script:Cfg.Profile $script:Cfg.ProfileRef)
 }
