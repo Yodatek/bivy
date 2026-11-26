@@ -1,9 +1,10 @@
 # shellcheck shell=bash
-# Contexts: a Git identity, a profile, or both, below a directory. For a context
-# with a profile, povy writes <dir>/.config/mise/conf.d/povy.toml, which includes
-# the profile's team.toml: mise applies it to every directory below, to the tools
-# that IDEs and agents start through the shims too, and the deepest context wins.
-# The top-level profile is the default context, which mise's global conf.d applies
+# Contexts: a Git identity, a profile, variables, or several, below a directory.
+# For a context with a profile or variables, povy writes
+# <dir>/.config/mise/conf.d/povy.toml, which includes the profile's team.toml and
+# sets the variables: mise applies it to every directory below, to the tools that
+# IDEs and agents start through the shims too, and the deepest context wins. The
+# top-level profile is the default context, which mise's global conf.d applies
 # everywhere.
 #
 # The functions written for one profile act on the current context, which
@@ -36,6 +37,11 @@ context_ids() {
 # One field of a context: 2 dir, 3 name, 4 email, 5 profile, 6 ref, 7 path.
 context_field() {
   printf '%s\n' "$CFG_CONTEXTS" | awk -F'\t' -v id="$1" -v n="$2" '$1 == id { print $n; exit }'
+}
+
+# The variables of a context, "name<TAB>value" lines, in the order of config.toml.
+context_env() {
+  printf '%s\n' "$CFG_CONTEXT_ENV" | awk -F'\t' -v id="$1" '$1 == id { print $2 "\t" $3 }'
 }
 
 # How messages name the profile of a context.
@@ -77,10 +83,10 @@ context_select() {
 }
 
 # Writes the conf.d file of the current context and has mise trust it, as mise
-# applies a project's config only once trusted. A profile without team.toml needs
-# no file, and a file left from before goes.
+# applies a project's config only once trusted. A context with neither a team.toml
+# nor variables needs no file, and a file left from before goes.
 context_conf_apply() {
-  if [ -z "$PROFILE_TEAM" ]; then
+  if [ -z "$PROFILE_TEAM" ] && [ -z "$(context_env "$CONTEXT_ID")" ]; then
     context_conf_remove "$CONTEXT_CONF"
     return 0
   fi

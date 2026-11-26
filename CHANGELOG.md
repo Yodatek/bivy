@@ -6,6 +6,10 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `env` in `[contexts.<id>]`: variables that apply below the context's directory, through the mise config that `apply` writes there, a profile or not, and that win over the profile's `[env]`. Such as `CLAUDE_CONFIG_DIR`, for a Claude Code config and sign-in of the context's own.
+
 ## [0.4.0] - 2026-11-24
 
 The prompt can now show the context of the current directory: interactive shells keep its id in `POVY_CONTEXT`, and the Contexts section of the README shows how with Starship.

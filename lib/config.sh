@@ -10,6 +10,9 @@ CFG_PROFILE_REF=""
 CFG_PROFILE_PATH=""
 CFG_IDENTITIES=""
 CFG_CONTEXTS=""
+# The variables of the contexts, "id<TAB>name<TAB>value" lines, in the order of
+# config.toml.
+CFG_CONTEXT_ENV=""
 CFG_BANNER=true
 # The top-level profile, which applies in every directory. CFG_PROFILE and the
 # keys after it hold the profile of the current context, which context_select sets.
@@ -19,6 +22,8 @@ CFG_DEFAULT_PROFILE_PATH=""
 
 POVY_REF_RE='^[A-Za-z0-9_][A-Za-z0-9._/-]*$'
 POVY_CONTEXT_ID_RE='^[a-z0-9][a-z0-9-]*$'
+# An environment variable: a context's, or the one a profile's secret is read from.
+POVY_ENV_NAME_RE='^[A-Za-z_][A-Za-z0-9_]*$'
 # The shared .env, which a context reads after its own <id>.env.
 POVY_ENV_FALLBACK=""
 
@@ -109,10 +114,11 @@ toml_identities() {
 
 # Prints "id<TAB>dir<TAB>name<TAB>email<TAB>profile<TAB>ref<TAB>path" for each
 # [contexts.<id>] table, in the order of the file. A context sets a Git identity, a
-# profile, or both, below its directory. Every field is checked against control
-# characters, so tabs and newlines cannot shift the columns.
+# profile, variables, or several, below its directory; toml_context_env reads the
+# variables. Every field is checked against control characters, so tabs and
+# newlines cannot shift the columns.
 toml_contexts() {
-  local file=$1 tag ids id entry keys key dir name email profile ref path problem seen=""
+  local file=$1 tag ids id entry keys key dir name email profile ref path problem seen="" vars
   tag=$(toml_query "$file" '(.contexts // {}) | tag') || die "$file is not valid TOML"
   # yq gives no tag to a table that only dotted headers such as [contexts.a] declare.
   case "$tag" in
@@ -133,7 +139,7 @@ toml_contexts() {
     keys=$(toml_query "$file" ".contexts[\"$id\"] | keys | .[]") || die "$file is not valid TOML"
     while IFS= read -r key; do
       case "$key" in
-        dir | name | email | profile | profile_ref | profile_path) ;;
+        dir | name | email | profile | profile_ref | profile_path | env) ;;
         *) die "$file: $entry: unknown key: $key" ;;
       esac
     done <<<"$keys"
@@ -151,7 +157,8 @@ toml_contexts() {
       *$'\n'"$dir"$'\n'*) die "$file: $entry: another context has the directory $dir" ;;
     esac
     seen="$seen"$'\n'"$dir"$'\n'
-    [ -n "$email$profile" ] || die "$file: $entry: give it an email, a profile, or both"
+    vars=$(toml_query "$file" "(.contexts[\"$id\"].env // {}) | length") || die "$file is not valid TOML"
+    [ -n "$email$profile" ] || [ "$vars" != 0 ] || die "$file: $entry: give it an email, a profile or env"
     if [ -n "$email" ]; then
       [ -n "$name" ] || name=$CFG_NAME
       valid_name "$name" || die "$file: $entry: invalid name"
@@ -172,6 +179,37 @@ toml_contexts() {
     fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$dir" "$name" "$email" "$profile" "$ref" "$path"
   done <<<"$ids"
+}
+
+# Prints "id<TAB>name<TAB>value" for each variable of a context's env table, which
+# povy writes into the context's mise config. A value is a string without control
+# characters, which mise reads as written but for a leading ~/: it renders its
+# templates, such as {{env.HOME}}. PATH is the business of the profiles' bin and
+# of mise's own config.
+toml_context_env() {
+  local file=$1 id entry tag names name value
+  while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    entry="contexts.$id.env"
+    tag=$(toml_query "$file" ".contexts[\"$id\"].env | tag") || die "$file is not valid TOML"
+    # As for [contexts.<id>], yq gives no tag to a table that only dotted keys declare.
+    case "$tag" in
+      '!!null') continue ;;
+      '!!map' | '') ;;
+      *) die "$file: $entry must be a table of variables, such as env = { NAME = \"value\" }" ;;
+    esac
+    names=$(toml_query "$file" ".contexts[\"$id\"].env | keys | .[]") || die "$file is not valid TOML"
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      [[ "$name" =~ $POVY_ENV_NAME_RE ]] && [ "$name" != _ ] || die "$file: $entry: invalid variable name: $name"
+      [ "$name" != PATH ] || die "$file: $entry: PATH cannot be set here"
+      tag=$(toml_query "$file" ".contexts[\"$id\"].env[\"$name\"] | tag") || die "$file is not valid TOML"
+      [ "$tag" = '!!str' ] || die "$file: $entry.$name must be a string"
+      value=$(toml_query "$file" ".contexts[\"$id\"].env[\"$name\"]") || die "$file is not valid TOML"
+      ! has_control_chars "$value" || die "$file: $entry.$name contains control characters"
+      printf '%s\t%s\t%s\n' "$id" "$name" "$value"
+    done <<<"$names"
+  done <<<"$(printf '%s\n' "$CFG_CONTEXTS" | cut -f1)"
 }
 
 # Prints true or false for a top-level boolean, or the default when it is absent.
@@ -215,6 +253,7 @@ config_read() {
   [ -z "$problem" ] || die "$file: $problem"
   CFG_IDENTITIES=$(toml_identities "$file") || exit 1
   CFG_CONTEXTS=$(toml_contexts "$file") || exit 1
+  CFG_CONTEXT_ENV=$(toml_context_env "$file") || exit 1
   CFG_BANNER=$(toml_bool "$file" banner true) || exit 1
   CFG_DEFAULT_PROFILE=$CFG_PROFILE
   CFG_DEFAULT_PROFILE_REF=$CFG_PROFILE_REF

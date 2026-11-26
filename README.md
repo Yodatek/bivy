@@ -82,7 +82,7 @@ profile = "git@example.org:team/workstation.git"
 profile_ref = "v3"    # optional: a branch, a tag or a commit, else the default branch
 profile_path = "dev"  # optional: the directory of the repository that holds the profile
 
-[contexts.oss]        # optional: a Git identity, a profile, or both, below a directory
+[contexts.oss]        # optional: a Git identity, a profile or env, below a directory
 dir = "~/oss/"
 email = "ada@users.noreply.github.com"
 # name = "Ada"        # defaults to the name above
@@ -132,9 +132,9 @@ commands in your shells, so only use one you trust.
 
 ## Contexts
 
-A context applies a profile, a Git identity, or both, below a directory. Contexts let
-one machine serve several teams, each with its own tools, variables, secrets and
-identity, in the real home directory:
+A context applies a profile, a Git identity, variables, or several, below a directory.
+Contexts let one machine serve several teams, each with its own tools, variables,
+secrets and identity, in the real home directory:
 
 ```toml
 [contexts.acme]
@@ -149,6 +149,7 @@ profile_ref = "main"
 [contexts.solo]
 dir = "~/solo/"
 email = "ada@users.noreply.github.com"
+env = { CLAUDE_CONFIG_DIR = "~/.claude-solo" }
 ```
 
 For a context with a profile, `povy apply` clones it and writes
@@ -159,6 +160,19 @@ agents run. `mise bootstrap` applies the profile's `mise.toml` as for the defaul
 profile, the profile's commands go on every `PATH`, and the context's identity
 applies to the repositories below its directory. `povy status` shows which contexts
 apply where.
+
+A context's `env` sets variables below its directory, in the same mise config, where
+they win over the profile's `[env]`. povy expands a leading `~/`, and mise renders its
+templates, such as `{{env.HOME}}`. Like the profile's, they reach the tools that mise
+starts, through its shims or `mise activate`. They suit what is yours rather than the
+team's, such as the account a tool uses. Claude Code, for one, keeps its settings,
+plugins, history and sign-in in the directory that `CLAUDE_CONFIG_DIR` names: once
+`claude` is a mise tool, a context gets a Claude Code of its own, which you sign in to
+once from its directory. The Claude desktop app keeps one config for all its sessions.
+
+```bash
+mise use --path ~/.config/mise/config.toml claude
+```
 
 In interactive zsh, bash and PowerShell, `POVY_CONTEXT` holds the id of the deepest
 context of the current directory, and is unset outside them, for the prompt to show.
@@ -234,9 +248,9 @@ in the terminals of VS Code and its forks, Zed, JetBrains IDEs, Emacs and Claude
 
 - `~/.config/mise/conf.d/povy.toml` is generated: it includes the profile's `team.toml`.
   Your `~/.config/mise/config.toml` is not touched.
-- For each context with a profile, `<dir>/.config/mise/conf.d/povy.toml` is generated,
-  the clone lives in `~/.local/state/povy/contexts/<id>/`, and the secrets in
-  `~/.config/povy/<id>.env`.
+- For each context with a profile or `env`, `<dir>/.config/mise/conf.d/povy.toml` is
+  generated. A context's profile has its clone in `~/.local/state/povy/contexts/<id>/`,
+  and its secrets in `~/.config/povy/<id>.env`.
 - `mise bootstrap` applies the profile's `mise.toml`, as its documentation describes.
 - Marked blocks in the startup files source `~/.config/povy/env.sh`, which puts the
   shims, the profile's commands and `~/.local/bin` on PATH by absolute path, and
