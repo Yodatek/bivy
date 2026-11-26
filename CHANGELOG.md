@@ -6,6 +6,10 @@ The notable changes of each release. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-26
+
+A context can now set variables below its directory with `env`, such as `CLAUDE_CONFIG_DIR` for a Claude Code of its own: the Contexts section of the README shows how.
+
 ### Added
 
 - `env` in `[contexts.<id>]`: variables that apply below the context's directory, through the mise config that `apply` writes there, a profile or not, and that win over the profile's `[env]`. Such as `CLAUDE_CONFIG_DIR`, for a Claude Code config and sign-in of the context's own.
@@ -79,7 +83,8 @@ First release.
 - A sample profile in `_samples/profile`.
 - `povy --version`.
 
-[Unreleased]: https://github.com/Yodatek/povy/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Yodatek/povy/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Yodatek/povy/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Yodatek/povy/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Yodatek/povy/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Yodatek/povy/compare/v0.1.0...v0.2.0
